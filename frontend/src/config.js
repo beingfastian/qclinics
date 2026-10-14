@@ -1,8 +1,8 @@
 // Details of the hospital running this site. Each hospital sets these in
-// frontend/.env (VITE_HOSPITAL_*); the defaults are demo placeholders.
+// frontend/.env (VITE_HOSPITAL_*); the default name is the current hospital (Haram Medical Complex).
 const env = import.meta.env;
 
-export const HOSPITAL_NAME = env.VITE_HOSPITAL_NAME || "Demo Hospital";
+export const HOSPITAL_NAME = env.VITE_HOSPITAL_NAME || "Haram Medical Complex (HMC)";
 // Optional: shown under the English name on the queue screens
 export const HOSPITAL_NAME_URDU = env.VITE_HOSPITAL_NAME_URDU || "";
 // Contact number used for WhatsApp buttons, calls and contact info.
