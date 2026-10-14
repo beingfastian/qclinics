@@ -45,14 +45,22 @@ export const NotificationProvider = ({ children }) => {
 
     fetchNotifications();
 
-    const socket = io(backendUrl, { auth: { token } });
+    // Live updates where the server supports them (Railway, Render). On Vercel there
+    // is no live connection: stop retrying after a few tries and check every minute.
+    const socket = io(backendUrl, { auth: { token }, reconnectionAttempts: 3 });
     socket.on("newNotification", (notification) => {
       setNotifications(prev => [notification, ...prev]);
       setUnreadCount(prev => prev + 1);
       toast.info(notification.title);
     });
+    const poll = setInterval(() => {
+      if (!socket.connected && document.visibilityState === "visible") fetchNotifications();
+    }, 60000);
 
-    return () => socket.close();
+    return () => {
+      clearInterval(poll);
+      socket.close();
+    };
   }, [backendUrl]);
 
   // Mark notification as read

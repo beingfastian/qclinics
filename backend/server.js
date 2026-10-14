@@ -1,61 +1,18 @@
-import express from "express";
+// Always-on server (Railway, Render, local): the Express app from expressApp.js,
+// plus live updates (Socket.IO) and the reminder timer. Vercel uses api/index.js.
 import http from "http";
 import { Server as SocketIOServer } from "socket.io";
-import cors from "cors";
 import jwt from "jsonwebtoken";
-import "dotenv/config";
-import connectDB from "./config/mongodb.js";
-import mongoose from "mongoose";
-import { runMigrations } from "./config/migrations.js";
-import connectCloudinary from "./config/cloudinary.js";
-import adminRouter from "./routes/adminRoute.js";
-import doctorRouter from "./routes/doctorRoute.js";
-import whatsappRouter from "./routes/whatsappRoute.js";
-import notificationRoutes from "./routes/notificationRoutes.js";
-import authRoutes from "./routes/authRoutes.js";
-import queueRouter from "./routes/queueRoute.js";
-import labRouter from "./routes/labRoute.js";
+import app, { corsOptions } from "./expressApp.js";
 import { labStaffModel } from "./model/labModel.js";
-import { testEmailConnection } from "./config/emailService.js";
 import { getWhatsAppProvider } from "./config/whatsappService.js";
 import { startReminderScheduler } from "./jobs/reminders.js";
 
-// Fail fast with a clear message if required configuration is missing
-const requiredEnv = ["MONGODB_URI", "JWT_SECRET", "ADMIN_EMAIL", "ADMIN_PASSWORD"];
-const missingEnv = requiredEnv.filter((key) => !process.env[key]);
-if (missingEnv.length) {
-  console.error(`Missing required environment variables: ${missingEnv.join(", ")}`);
-  console.error("Copy backend/.env.example to backend/.env and fill them in.");
-  process.exit(1);
-}
-
-// Allowed frontend origins, e.g. "https://site.vercel.app,https://admin.vercel.app".
-// When unset (local development) every origin is allowed.
-const allowedOrigins = (process.env.CORS_ORIGINS || "")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-const corsOptions = { origin: allowedOrigins.length ? allowedOrigins : "*" };
-
-// App Config
-const app = express();
-app.set("trust proxy", 1); // correct protocol/host behind Render/Vercel proxies
+const port = process.env.PORT || 4000;
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {
   cors: { ...corsOptions, methods: ["GET", "POST"] }
 });
-
-const port = process.env.PORT || 4000;
-mongoose.connection.once("connected", () => runMigrations());
-connectDB();
-connectCloudinary();
-testEmailConnection();
-
-// Middlewares
-app.use(cors(corsOptions));
-// Keep the raw body: webhook signatures (Kapso) are computed over the exact bytes
-app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
-app.use(express.urlencoded({ extended: true }));
 
 // Make io accessible to routes
 app.set("io", io);
@@ -84,25 +41,6 @@ io.use(async (socket, next) => {
 
 io.on("connection", (socket) => {
   socket.join(socket.data.room);
-});
-
-// Api Endpoints
-app.use("/api/admin", adminRouter);
-app.use("/api/doctor", doctorRouter);
-app.use("/api/whatsapp", whatsappRouter);
-app.use("/api/notifications", notificationRoutes);
-app.use("/api/auth", authRoutes);
-app.use("/api/queue", queueRouter);
-app.use("/api/lab", labRouter);
-
-app.get("/", (req, res) => {
-  res.status(200).send("API Working");
-});
-
-// Errors thrown by middleware (e.g. rejected uploads) as JSON instead of HTML
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(err.status || 400).json({ success: false, message: err.message || "Request failed" });
 });
 
 server.listen(port, () => {

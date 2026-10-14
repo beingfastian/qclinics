@@ -29,6 +29,7 @@ import { LANGUAGES, patientLanguage } from "../whatsapp/templates.js";
 import { sendWhatsAppQueueToken, sendWhatsAppTurnNear } from "../config/whatsappService.js";
 import { queueNotification } from "./notificationQueue.js";
 import { completeAppointment, cancelAppointment, AppointmentError } from "./appointmentService.js";
+import { background } from "../utils/background.js";
 
 // An error whose message is safe to show to staff
 export class QueueError extends Error {}
@@ -160,8 +161,9 @@ const notifyTurnNear = async (docId, day) => {
     );
   }
 };
+// Runs after the reply; on Vercel, waitUntil keeps the function alive for it
 const notifyTurnNearSafely = (docId, day) =>
-  notifyTurnNear(docId, day).catch((error) => console.error("Queue turn-near check failed:", error.message));
+  background(notifyTurnNear(docId, day).catch((error) => console.error("Queue turn-near check failed:", error.message)));
 
 // "hh:mm AM" of a moment, in hospital time (how appointment times are stored)
 const slotTimeOf = (moment) => {
