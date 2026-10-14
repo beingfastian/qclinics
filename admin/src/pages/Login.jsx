@@ -1,7 +1,7 @@
 import { useContext, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
-import { FaEye, FaEyeSlash, FaUserTie, FaUserMd, FaFlask, FaListOl, FaFileMedical, FaChartBar } from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaListOl, FaFileMedical, FaChartBar } from "react-icons/fa";
 import BrandLogo from "../components/ui/BrandLogo";
 import { HOSPITAL_NAME, PRODUCT_TAGLINE } from "../config";
 import { AdminContext } from "../context/AdminContext";
@@ -9,16 +9,10 @@ import { DoctorContext } from "../context/DoctorContext";
 import { LabContext } from "../context/LabContext";
 import { Button, Field, Input } from "../components/ui";
 
-// One sign-in page for every role. The role decides which account is checked;
-// the requests and where each role lands are unchanged.
-const ROLES = [
-  { key: "Admin", label: "Reception / Admin", icon: <FaUserTie /> },
-  { key: "Doctor", label: "Doctor", icon: <FaUserMd /> },
-  { key: "Lab", label: "Lab", icon: <FaFlask /> },
-];
+// One sign-in for admin, doctors and lab staff: the server recognises the email
+// and says which role it is, and the matching dashboard opens.
 
 const Login = () => {
-  const [state, setState] = useState("Admin");
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,32 +29,27 @@ const Login = () => {
     setLoading(true);
     setError("");
     try {
-      if (state === "Admin") {
-        const { data } = await axios.post(backendUrl + "/api/admin/login", { email, password });
-        if (data.success) {
-          localStorage.setItem("aToken", data.token);
-          setAToken(data.token);
-        } else {
-          setError(data.message);
-        }
-      } else if (state === "Lab") {
-        const { data } = await axios.post(backendUrl + "/api/lab/login", { email, password });
-        if (data.success) {
-          localStorage.setItem("lToken", data.token);
-          navigate("/lab");
-          setLToken(data.token);
-        } else {
-          setError(data.message);
-        }
+      const { data } = await axios.post(backendUrl + "/api/auth/login", { email: email.trim(), password });
+      if (!data.success) {
+        setError(data.message);
+        return;
+      }
+      // One role at a time: drop any older session first
+      ["aToken", "dToken", "lToken"].forEach((key) => localStorage.removeItem(key));
+      if (data.role === "admin") {
+        localStorage.setItem("aToken", data.token);
+        setAToken(data.token);
+        navigate("/");
+      } else if (data.role === "doctor") {
+        localStorage.setItem("dToken", data.token);
+        navigate("/doctor");
+        setDToken(data.token);
+      } else if (data.role === "lab") {
+        localStorage.setItem("lToken", data.token);
+        navigate("/lab");
+        setLToken(data.token);
       } else {
-        const { data } = await axios.post(backendUrl + "/api/doctor/login", { email, password });
-        if (data.success) {
-          localStorage.setItem("dToken", data.token);
-          navigate("/doctor");
-          setDToken(data.token);
-        } else {
-          setError(data.message);
-        }
+        setError("This account can't sign in here.");
       }
     } catch (err) {
       console.error(err);
@@ -106,33 +95,7 @@ const Login = () => {
           </div>
 
           <h1 className="text-2xl font-semibold text-slate-900">Sign in</h1>
-          <p className="mt-1 text-sm text-slate-600">Choose your role, then enter your work email and password.</p>
-
-          <div role="radiogroup" aria-label="Role" className="mt-6 grid grid-cols-3 gap-2">
-            {ROLES.map((r) => {
-              const selected = state === r.key;
-              return (
-                <button
-                  key={r.key}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  onClick={() => {
-                    setState(r.key);
-                    setError("");
-                  }}
-                  className={`flex flex-col items-center gap-1.5 rounded-lg border px-2 py-3 text-sm font-medium transition-colors ${
-                    selected ? "border-primary bg-primary-50 text-primary-900" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                  }`}
-                >
-                  <span aria-hidden="true" className={selected ? "text-primary-700" : "text-slate-400"}>
-                    {r.icon}
-                  </span>
-                  <span className="text-center leading-tight">{r.label}</span>
-                </button>
-              );
-            })}
-          </div>
+          <p className="mt-1 text-sm text-slate-600">Reception, doctors and lab staff: enter your work email and password.</p>
 
           <form onSubmit={onSubmitHandler} className="mt-6 space-y-4" noValidate>
             <Field label="Email" htmlFor="login-email">
@@ -178,13 +141,11 @@ const Login = () => {
               {loading ? "Signing in" : "Sign in"}
             </Button>
 
-            {state === "Doctor" && (
-              <div className="text-right">
-                <Link to="/forgot-password" className="text-sm font-medium text-primary-700 hover:text-primary-900">
-                  Forgot password?
-                </Link>
-              </div>
-            )}
+            <div className="text-right">
+              <Link to="/forgot-password" className="text-sm font-medium text-primary-700 hover:text-primary-900">
+                Forgot password?
+              </Link>
+            </div>
           </form>
         </div>
       </main>

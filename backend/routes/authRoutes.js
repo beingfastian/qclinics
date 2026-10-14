@@ -1,7 +1,10 @@
 import express from "express";
-import { forgotPassword, verifyOTP, resetPassword } from "../controllers/authController.js";
+import { login, forgotPassword, verifyOTP, resetPassword } from "../controllers/authController.js";
 
 const router = express.Router();
+
+// One sign-in for admin, doctors and lab staff
+router.post("/login", login);
 
 // Forgot password
 router.post("/forgot-password", forgotPassword);

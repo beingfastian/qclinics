@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import axios from "axios";
-import { assets } from "../../assets/assets";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
@@ -49,7 +48,8 @@ const ForgotPassword = () => {
   </svg>
 </div>
           <h2 className="text-2xl font-bold text-white">Forgot Password</h2>
-          <p className="text-primary-100 mt-2">Enter your email to reset your password</p>
+          <p className="text-primary-100 mt-2">Doctors: enter your email to get a reset code</p>
+          <p className="text-primary-100 mt-1 text-sm">Reception and lab staff: ask the hospital admin to reset your password.</p>
         </div>
         
         <form onSubmit={handleSubmit} className="p-6">
