@@ -22,7 +22,7 @@ if (!/^mongodb:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(baseUri)) {
   console.error("Refusing to run: CHECK_MONGODB_URI must be a local MongoDB (this script deletes its test database).");
   process.exit(1);
 }
-await mongoose.connect(baseUri, { dbName: "siddique_labcheck_" + Date.now() });
+await mongoose.connect(baseUri, { dbName: "qclinics_labcheck_" + Date.now() });
 
 const express = (await import("express")).default;
 const jwt = (await import("jsonwebtoken")).default;
