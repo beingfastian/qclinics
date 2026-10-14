@@ -8,7 +8,11 @@
 // - The outcome of each job is saved on the appointment (appointment.notifications).
 //
 // Jobs live in memory: if the server restarts with jobs still waiting, those are lost.
+//
+// On Vercel (no always-on server) each job runs at once under waitUntil, with one
+// quick retry, because a function can't wait 10-60 seconds between attempts.
 import appointmentModel from "../model/appointmentModel.js";
+import { background, onVercel } from "../utils/background.js";
 
 const MAX_CONCURRENT = Number(process.env.NOTIFY_CONCURRENCY ?? 3);
 const RETRY_DELAYS_MS = [10_000, 60_000];
@@ -60,6 +64,16 @@ const run = async (job) => {
   }
 
   const error = result?.error || "Unknown error";
+  if (onVercel) {
+    if (job.attempt === 0 && !PERMANENT_ERRORS.test(error)) {
+      job.attempt = 1;
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      return run(job);
+    }
+    console.error(`Notification failed (${job.channel} to ${job.recipient}, ${job.kind}): ${error}`);
+    await record(job, "failed", error);
+    return;
+  }
   const retryIn = RETRY_DELAYS_MS[job.attempt];
   if (retryIn !== undefined && !PERMANENT_ERRORS.test(error)) {
     job.attempt += 1;
@@ -89,7 +103,13 @@ const enqueue = (job) => {
 // Add a send to the queue. `send` must return { success, error? }.
 // job: { appointmentId?, channel: "whatsapp" | "email", recipient: "patient" | "doctor", kind, send,
 //        onDone?(status: "sent" | "failed", error?) }
-export const queueNotification = (job) => enqueue({ attempt: 0, ...job });
+export const queueNotification = (job) => {
+  if (onVercel) {
+    background(run({ attempt: 0, ...job }));
+    return;
+  }
+  enqueue({ attempt: 0, ...job });
+};
 
 // For tests and monitoring
 export const queueStats = () => ({ waiting: waiting.length, running });
