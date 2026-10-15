@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useDialog } from "../components/ui/Dialog";
 import axios from "axios";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
   FaBullhorn,
@@ -690,16 +690,10 @@ const Queue = () => {
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Queue</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Live Queue</h1>
           <p className="text-sm text-gray-500">{queue ? slotDateFormat(queue.day) : "Today"} · tokens restart at 1 every day</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* The guided way: find the patient, check in or pick the doctor, token */}
-          <Link to="/arrived" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-800">
-            <FaUserPlus /> Patient arrived
-          </Link>
-          {headerButtons}
-        </div>
+        {headerButtons}
       </div>
 
       {/* Which doctor: big and obvious, so a patient never goes into the wrong line */}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import axios from "axios";
 import { FaChartBar, FaTable, FaExclamationTriangle } from "react-icons/fa";
 import { rupees } from "./ShareField";
@@ -322,7 +323,10 @@ const ProfitReport = ({ mode = "admin", headers: headersProp, doctors = [] }) =>
           {mode === "admin" && report.doctorsWithoutShare?.length > 0 && (
             <p className="mb-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900 flex items-start gap-2">
               <FaExclamationTriangle className="mt-0.5 shrink-0" />
-              No hospital share set for: {report.doctorsWithoutShare.map((n) => `Dr. ${n}`).join(", ")}. Their visits count as 0 profit until you set it on the Doctors page.
+              <span>
+                No hospital share set for: {report.doctorsWithoutShare.map((n) => `Dr. ${n}`).join(", ")}. Their visits count as 0 profit until you set it in{" "}
+                <Link to="/doctors" className="font-medium underline">Manage Doctors</Link>.
+              </span>
             </p>
           )}
 
@@ -346,7 +350,7 @@ const ProfitReport = ({ mode = "admin", headers: headersProp, doctors = [] }) =>
 
           {showTable || singlePeriod ? (
             <div className="overflow-x-auto bg-white rounded-xl border border-gray-100">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm whitespace-nowrap">
                 <thead className="text-gray-500 text-left">
                   <tr>
                     <th className="px-4 py-2 font-medium">{groupBy === "day" ? "Day" : groupBy === "week" ? "Week" : "Month"}</th>
@@ -369,6 +373,10 @@ const ProfitReport = ({ mode = "admin", headers: headersProp, doctors = [] }) =>
                 </tbody>
               </table>
             </div>
+          ) : t.visits === 0 ? (
+            <p className="bg-white rounded-xl border border-gray-100 p-6 text-center text-sm text-gray-500">
+              No completed visits in this period yet. Earnings appear here once doctors complete visits.
+            </p>
           ) : (
             <div className="bg-white rounded-xl border border-gray-100 p-3">
               {/* Legend in the same order as the stack, bottom part first */}
@@ -382,7 +390,7 @@ const ProfitReport = ({ mode = "admin", headers: headersProp, doctors = [] }) =>
 
           {mode === "admin" && !docId && (
             <div className="mt-4 overflow-x-auto bg-white rounded-xl border border-gray-100">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm whitespace-nowrap">
                 <caption className="text-left px-4 pt-3 pb-1 font-semibold text-gray-900">By doctor</caption>
                 <thead className="text-gray-500 text-left">
                   <tr>

@@ -435,7 +435,7 @@ const BookAppointmentForPatient = () => {
                 })}
               </div>
             ) : (
-              <EmptyState title="No doctors available" description="Mark a doctor available on the Doctors page to book with them." />
+              <EmptyState title="No doctors available" description="Mark a doctor available in Manage Doctors to book with them." />
             )}
           </Card>
 

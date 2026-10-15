@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { AdminContext } from "../context/AdminContext";
 import { DoctorContext } from "../context/DoctorContext.jsx";
@@ -11,9 +11,8 @@ import {
   FaUserMd,
   FaCalendarCheck,
   FaChartBar,
-  FaHome,
-  FaEllipsisH,
-  FaChevronDown,
+  FaStethoscope,
+  FaUserInjured,
   FaCalendarAlt,
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
@@ -24,41 +23,54 @@ import {
   FaUsersCog,
 } from "react-icons/fa";
 
-// Reception/admin menu: the six things used every day, the rest under "More".
-// `also` marks pages that belong to an item (e.g. Add doctor under Doctors).
 const adminSections = [
   {
-    key: "main",
+    title: "Overview",
+    items: [{ path: "/", icon: <FaChartBar />, label: "Dashboard", end: true }],
+  },
+  {
+    title: "Appointments",
     items: [
-      { path: "/", icon: <FaHome />, label: "Home", end: true },
-      { path: "/queue", icon: <FaListOl />, label: "Queue", also: ["/arrived"] },
-      { path: "/all-appointments", icon: <FaCalendarAlt />, label: "Appointments", also: ["/book-appointment"] },
-      { path: "/patients", icon: <FaUsers />, label: "Patients", also: ["/add-patient"] },
-      { path: "/doctors", icon: <FaUserMd />, label: "Doctors", also: ["/add-doctor", "/leave-management"], badge: "pendingLeave" },
-      { path: "/reports", icon: <FaChartBar />, label: "Reports" },
+      { path: "/queue", icon: <FaListOl />, label: "Live Queue" },
+      { path: "/all-appointments", icon: <FaCalendarAlt />, label: "All Appointments" },
+      { path: "/book-appointment", icon: <FaUserPlus />, label: "Book Appointment" },
     ],
   },
   {
-    key: "more",
-    title: "More",
-    collapsible: true,
+    title: "Doctors",
+    items: [
+      { path: "/doctors", icon: <FaUserMd />, label: "Manage Doctors" },
+      { path: "/add-doctor", icon: <FaStethoscope />, label: "Add Doctor" },
+      { path: "/leave-management", icon: <FaCalendarCheck />, label: "Leave Requests", badge: "pendingLeave" },
+    ],
+  },
+  {
+    title: "Patients",
+    items: [
+      { path: "/patients", icon: <FaUsers />, label: "Manage Patients" },
+      { path: "/add-patient", icon: <FaUserInjured />, label: "Add Patient" },
+    ],
+  },
+  {
+    title: "Lab",
     items: [
       { path: "/lab-requests", icon: <FaFlask />, label: "Lab Requests", badge: "labOpen", lab: true },
       { path: "/lab-tests", icon: <FaVials />, label: "Lab Tests", lab: true },
       { path: "/lab-staff", icon: <FaUsersCog />, label: "Lab Staff", lab: true },
-      { path: "/settings", icon: <FaCog />, label: "Settings" },
     ],
+  },
+  {
+    title: "System",
+    items: [{ path: "/settings", icon: <FaCog />, label: "Settings" }],
   },
 ];
 
 const doctorSections = [
   {
-    key: "overview",
     title: "Overview",
     items: [{ path: "/doctor", icon: <FaChartBar />, label: "Dashboard", end: true }],
   },
   {
-    key: "work",
     title: "My Work",
     items: [
       { path: "/doctor/queue", icon: <FaListOl />, label: "Live Queue" },
@@ -72,7 +84,6 @@ const doctorSections = [
 
 const labSections = [
   {
-    key: "lab",
     title: "Lab",
     items: [
       { path: "/lab", icon: <FaFlask />, label: "Lab Requests", end: true, badge: "labOpen" },
@@ -110,14 +121,6 @@ const Sidebar = ({ mobileOpen, onClose }) => {
     });
   };
 
-  // "More" opens by itself when the current page is inside it
-  const inMore = (path) => adminSections[1].items.some((item) => path.startsWith(item.path));
-  const [moreOpen, setMoreOpen] = useState(() => inMore(location.pathname));
-  useEffect(() => {
-    if (inMore(location.pathname)) setMoreOpen(true);
-  }, [location.pathname]);
-  const belongsHere = (item) => (item.also || []).some((path) => location.pathname.startsWith(path));
-
   // Pending leave count for the badge
   useEffect(() => {
     if (aToken) getLeaveStats();
@@ -149,81 +152,60 @@ const Sidebar = ({ mobileOpen, onClose }) => {
   // The drawer on mobile is always shown expanded
   const renderNav = (isCollapsed) => (
     <nav className="flex-1 overflow-y-auto py-4">
-      {sections.map((section) => {
-        const sectionCount = section.items.reduce((sum, item) => sum + (item.badge ? badges[item.badge] : 0), 0);
-        const showItems = !section.collapsible || moreOpen || isCollapsed;
-        let heading = null;
-        if (section.collapsible && !isCollapsed) {
-          heading = (
-            <button
-              type="button"
-              onClick={() => setMoreOpen(!moreOpen)}
-              aria-expanded={moreOpen}
-              className="mx-2 mb-1 flex w-[calc(100%-1rem)] items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-            >
-              <span className="flex h-5 w-5 items-center justify-center text-base">
-                <FaEllipsisH />
-              </span>
-              <span className="flex-1 text-left">{section.title}</span>
-              {!moreOpen && sectionCount > 0 && <span className="h-2 w-2 rounded-full bg-red-500" aria-label="Has items waiting" />}
-              <FaChevronDown aria-hidden="true" className={`text-xs transition-transform ${moreOpen ? "rotate-180" : ""}`} />
-            </button>
-          );
-        } else if (section.title && isCollapsed) {
-          heading = <div className="mx-4 mb-2 border-t border-gray-100" />;
-        } else if (section.title) {
-          heading = <p className="px-5 mb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">{section.title}</p>;
-        }
-        return (
-          <div key={section.key} className={`mb-4 ${section.collapsible ? "border-t border-gray-100 pt-3" : ""}`}>
-            {heading}
-            {showItems && (
-              <ul className="space-y-0.5">
-                {section.items.map((item) => {
-                  const count = item.badge ? badges[item.badge] : 0;
-                  const size = isCollapsed ? "justify-center px-0 py-2.5 text-sm" : section.collapsible ? "px-3 py-2 text-sm" : "px-3 py-2.5 text-[15px]";
-                  return (
-                    <li key={item.path}>
-                      <NavLink
-                        to={item.path}
-                        end={item.end}
-                        title={isCollapsed ? item.label : undefined}
-                        className={({ isActive }) =>
-                          `relative flex items-center gap-3 mx-2 rounded-lg font-medium transition-colors ${size} ${
-                            isActive || belongsHere(item)
-                              ? "bg-primary-50 text-primary-800"
-                              : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                          }`
-                        }
-                      >
-                        {({ isActive }) => (
-                          <>
-                            {(isActive || belongsHere(item)) && (
-                              <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r bg-primary-700" />
-                            )}
-                            <span className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-base">
-                              {item.icon}
-                            </span>
-                            {!isCollapsed && <span className="truncate flex-1">{item.label}</span>}
-                            {count > 0 &&
-                              (isCollapsed ? (
-                                <span className="absolute top-1.5 right-3 w-2 h-2 rounded-full bg-red-500" />
-                              ) : (
-                                <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-semibold flex items-center justify-center">
-                                  {count > 99 ? "99+" : count}
-                                </span>
-                              ))}
-                          </>
+      {sections.map((section) => (
+        <div key={section.title} className="mb-4">
+          {isCollapsed ? (
+            <div className="mx-4 mb-2 border-t border-gray-100" />
+          ) : (
+            <p className="px-5 mb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+              {section.title}
+            </p>
+          )}
+          <ul className="space-y-0.5">
+            {section.items.map((item) => {
+              const count = item.badge ? badges[item.badge] : 0;
+              return (
+                <li key={item.path}>
+                  <NavLink
+                    to={item.path}
+                    end={item.end}
+                    title={isCollapsed ? item.label : undefined}
+                    className={({ isActive }) =>
+                      `relative flex items-center gap-3 mx-2 rounded-lg text-sm font-medium transition-colors ${
+                        isCollapsed ? "justify-center px-0 py-2.5" : "px-3 py-2"
+                      } ${
+                        isActive
+                          ? "bg-primary-50 text-primary-800"
+                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        {isActive && (
+                          <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r bg-primary-700" />
                         )}
-                      </NavLink>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        );
-      })}
+                        <span className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-base">
+                          {item.icon}
+                        </span>
+                        {!isCollapsed && <span className="truncate flex-1">{item.label}</span>}
+                        {count > 0 &&
+                          (isCollapsed ? (
+                            <span className="absolute top-1.5 right-3 w-2 h-2 rounded-full bg-red-500" />
+                          ) : (
+                            <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-semibold flex items-center justify-center">
+                              {count > 99 ? "99+" : count}
+                            </span>
+                          ))}
+                      </>
+                    )}
+                  </NavLink>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
     </nav>
   );
 
@@ -267,7 +249,7 @@ const Sidebar = ({ mobileOpen, onClose }) => {
         aria-label="Main navigation"
       >
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-100">
-          <span className="font-semibold text-gray-900">Menu</span>
+          <span className="font-semibold text-gray-900">{aToken ? "Admin Menu" : "Doctor Menu"}</span>
           <button
             type="button"
             onClick={onClose}
@@ -280,42 +262,6 @@ const Sidebar = ({ mobileOpen, onClose }) => {
         {renderNav(false)}
       </aside>
     </>
-  );
-};
-
-// Phones and tablets (reception): the most used places one tap away; "More" opens the full menu
-export const AdminBottomNav = ({ onMore }) => {
-  const { pathname } = useLocation();
-  const item = (active) => `flex flex-col items-center gap-0.5 py-1 text-[11px] ${active ? "font-semibold text-primary-800" : "text-gray-600"}`;
-  return (
-    <nav
-      aria-label="Quick navigation"
-      className="lg:hidden fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t border-gray-200 bg-white px-1 pt-1"
-      style={{ paddingBottom: "max(0.25rem, env(safe-area-inset-bottom))" }}
-    >
-      <NavLink to="/" end className={item(pathname === "/")}>
-        <FaHome aria-hidden="true" className="text-lg" />
-        Home
-      </NavLink>
-      <NavLink to="/queue" className={item(pathname.startsWith("/queue"))}>
-        <FaListOl aria-hidden="true" className="text-lg" />
-        Queue
-      </NavLink>
-      <NavLink to="/arrived" className="flex flex-col items-center gap-0.5 text-[11px] font-medium text-gray-700">
-        <span aria-hidden="true" className="-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white shadow-md">
-          <FaUserPlus />
-        </span>
-        Arrived
-      </NavLink>
-      <NavLink to="/all-appointments" className={item(pathname.startsWith("/all-appointments") || pathname.startsWith("/book-appointment"))}>
-        <FaCalendarAlt aria-hidden="true" className="text-lg" />
-        Appointments
-      </NavLink>
-      <button type="button" onClick={onMore} className={item(false)}>
-        <FaEllipsisH aria-hidden="true" className="text-lg" />
-        More
-      </button>
-    </nav>
   );
 };
 

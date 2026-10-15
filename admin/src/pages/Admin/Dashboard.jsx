@@ -1,100 +1,104 @@
-import { useContext, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { FaCalendarPlus, FaCalendarTimes, FaChevronRight, FaFlask, FaListOl, FaSearch, FaUserMd, FaUserPlus } from "react-icons/fa";
+import { useContext, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import {
+  FaWhatsapp,
+  FaEnvelope,
+  FaUserMd,
+  FaCalendarCheck,
+  FaCalendarPlus,
+  FaUsers,
+  FaUserSlash,
+  FaListOl,
+  FaFlask,
+  FaCalendarTimes,
+  FaUserClock,
+  FaCheckCircle,
+  FaTimes,
+} from "react-icons/fa";
 import { AdminContext } from "../../context/AdminContext.jsx";
-import { HOSPITAL_NAME } from "../../config";
+import { AppContext } from "../../context/AppContext.jsx";
+import ProfitReport from "../../components/ProfitReport";
 import { useLabCounts, useLabEnabled } from "../../lab/api";
-import { Avatar, Badge, Button, Card, EmptyState, Skeleton } from "../../components/ui";
+import {
+  AppointmentStatus,
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  EmptyState,
+  IconButton,
+  Skeleton,
+  StatTile,
+  useDialog,
+} from "../../components/ui";
 
 const REFRESH_MS = 60000; // queue numbers move all day; keep the screen current
 
 // Hospital time (Pakistan), whatever the computer's clock is set to
-const hospitalHour = () => Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", hour: "numeric", hourCycle: "h23" }).format(new Date()));
-const greeting = () => {
-  const h = hospitalHour();
-  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
-};
 const todayText = () => new Date().toLocaleDateString("en-PK", { timeZone: "Asia/Karachi", weekday: "long", day: "numeric", month: "long" });
 
-// The four things reception does all day
-const TASKS = [
-  { to: "/arrived", icon: <FaUserPlus />, title: "Patient arrived", text: "Check in or give a token", primary: true },
-  { to: "/book-appointment", icon: <FaCalendarPlus />, title: "Book appointment", text: "For today or another day" },
-  { to: "/queue", icon: <FaListOl />, title: "Today's queue", text: "Who is waiting, call next" },
-  { to: "/patients", icon: <FaSearch />, title: "Find a patient", text: "By phone, name or CNIC" },
-];
-
-const TaskButton = ({ task }) => (
-  <Link
-    to={task.to}
-    className={`group flex items-center gap-4 rounded-2xl border p-5 transition-colors sm:flex-col sm:items-start sm:gap-3 ${
-      task.primary
-        ? "border-primary bg-primary text-white hover:bg-primary-800"
-        : "border-slate-200 bg-white text-slate-900 hover:border-primary-300 hover:bg-primary-50/40"
-    }`}
-  >
-    <span
-      aria-hidden="true"
-      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-xl ${task.primary ? "bg-white/15 text-white" : "bg-primary-50 text-primary-700"}`}
-    >
-      {task.icon}
-    </span>
-    <span className="min-w-0">
-      <span className="block font-display text-lg font-bold">{task.title}</span>
-      <span className={`block text-sm ${task.primary ? "text-primary-100" : "text-slate-600"}`}>{task.text}</span>
-    </span>
-  </Link>
-);
-
-const TodayNumber = ({ label, value, loading }) => (
-  <Card className="min-w-0">
-    <p className="text-sm text-slate-600">{label}</p>
-    {loading ? <Skeleton className="mt-2 h-8 w-16" /> : <p className="font-display text-3xl font-bold tabular-nums text-slate-900">{value}</p>}
-  </Card>
-);
-
 // One doctor's day: who is with them, who is waiting, who is still to come
-const DoctorTodayRow = ({ row, onOpenQueue }) => (
-  <li className="flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4">
-    <div className="flex min-w-0 flex-1 items-center gap-3 basis-60">
-      <Avatar src={row.image} name={row.name} className="h-10 w-10 shrink-0" textClass="text-sm" />
-      <div className="min-w-0">
-        <p className="truncate font-medium text-slate-900">Dr. {row.name}</p>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="truncate text-sm text-slate-600">{row.speciality}</span>
-          {row.paused && <Badge tone="warning">On a break</Badge>}
-          {!row.available && <Badge tone="neutral">Not available</Badge>}
+const DoctorTodayRow = ({ row, onOpenQueue }) => {
+  const numbers = [
+    { label: "With doctor", value: row.nowServing ? `#${row.nowServing}` : "–" },
+    { label: "Waiting", value: row.waiting },
+    { label: "Still to see", value: row.toSee },
+    { label: "Seen", value: row.seen },
+    { label: "No-shows", value: row.noShow },
+  ];
+  return (
+    <li className="flex flex-col gap-3 px-5 py-4 lg:flex-row lg:items-center">
+      <div className="flex min-w-0 items-center gap-3 lg:w-72">
+        <Avatar src={row.image} name={row.name} className="h-10 w-10 shrink-0" textClass="text-sm" />
+        <div className="min-w-0">
+          <p className="truncate font-medium text-slate-900">Dr. {row.name}</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="truncate text-sm text-slate-600">{row.speciality}</span>
+            {row.paused && <Badge tone="warning">On a break</Badge>}
+            {!row.available && <Badge tone="neutral">Not available</Badge>}
+          </div>
         </div>
       </div>
-    </div>
-    <dl className="grid grid-cols-3 gap-6">
-      {[
-        ["With doctor", row.nowServing ? `#${row.nowServing}` : "–"],
-        ["Waiting", row.waiting],
-        ["Still to see", row.toSee],
-      ].map(([label, value]) => (
-        <div key={label}>
-          <dt className="text-xs text-slate-500">{label}</dt>
-          <dd className="font-display text-lg font-semibold tabular-nums text-slate-900">{value}</dd>
-        </div>
-      ))}
-    </dl>
-    <Button size="sm" icon={<FaListOl />} onClick={() => onOpenQueue(row.docId)}>
-      Open queue
-    </Button>
-  </li>
-);
+      <dl className="grid flex-1 grid-cols-3 gap-x-2 gap-y-3 sm:grid-cols-5">
+        {numbers.map((n) => (
+          <div key={n.label} className="min-w-0">
+            <dt className="text-xs text-slate-500">{n.label}</dt>
+            <dd className="font-display text-lg font-semibold tabular-nums text-slate-900">{n.value}</dd>
+          </div>
+        ))}
+      </dl>
+      <Button size="sm" icon={<FaListOl />} onClick={() => onOpenQueue(row.docId)} className="w-full sm:w-auto">
+        Open queue
+      </Button>
+    </li>
+  );
+};
 
-// Reception home: what to do now. Earnings and totals live on the Reports page.
 const Dashboard = () => {
+  const { confirm } = useDialog();
   const navigate = useNavigate();
-  const { aToken, getDashData, dashData } = useContext(AdminContext);
+  const { aToken, getDashData, dashData, cancelAppointment, backendUrl, doctors, getAllDoctors } = useContext(AdminContext);
+  const { slotDateFormat } = useContext(AppContext);
   const labEnabled = useLabEnabled();
   const labCounts = useLabCounts(labEnabled && Boolean(aToken));
+  const [whatsappStats, setWhatsappStats] = useState({ enabledUsers: 0, todayNotifications: 0 });
+
+  const getWhatsAppStats = async () => {
+    try {
+      const { data } = await axios.get(backendUrl + "/api/admin/whatsapp-stats", { headers: { aToken } });
+      if (data.success) setWhatsappStats(data.data);
+    } catch (error) {
+      console.error("Error fetching WhatsApp stats:", error);
+    }
+  };
 
   useEffect(() => {
     if (!aToken) return undefined;
+    getAllDoctors(); // for the profit report's doctor filter
     getDashData();
+    getWhatsAppStats();
     const timer = setInterval(() => document.visibilityState === "visible" && getDashData({ silent: true }), REFRESH_MS);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -103,55 +107,69 @@ const Dashboard = () => {
   const loading = !dashData;
   const today = dashData?.todayDoctors;
   const totals = today?.totals;
+  const last30 = dashData?.last30Days;
   const openQueue = (docId) => navigate(`/queue?doc=${docId}`);
-
-  // Things waiting for someone, shown only when there are any
-  const attention = [
-    labEnabled && labCounts.open > 0 && { to: "/lab-requests", icon: <FaFlask />, text: `${labCounts.open} lab request${labCounts.open === 1 ? "" : "s"} waiting for the lab` },
-    dashData?.pendingLeave > 0 && { to: "/leave-management", icon: <FaCalendarTimes />, text: `${dashData.pendingLeave} leave request${dashData.pendingLeave === 1 ? "" : "s"} to review` },
-  ].filter(Boolean);
 
   return (
     <div className="w-full p-4 sm:p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-900">{greeting()}</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          {todayText()} · {HOSPITAL_NAME}
-        </p>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Today</h1>
+          <p className="mt-1 text-sm text-slate-600">{todayText()}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button icon={<FaListOl />} onClick={() => navigate("/queue")}>
+            Add to queue
+          </Button>
+          <Button variant="primary" icon={<FaCalendarPlus />} onClick={() => navigate("/book-appointment")}>
+            Book appointment
+          </Button>
+        </div>
       </div>
 
-      <nav aria-label="Quick actions" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {TASKS.map((task) => (
-          <TaskButton key={task.title} task={task} />
-        ))}
-      </nav>
-
-      <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <TodayNumber label="Waiting now" value={totals?.waiting ?? 0} loading={loading} />
-        <TodayNumber label="Still to see" value={totals?.toSee ?? 0} loading={loading} />
-        <TodayNumber label="Seen today" value={totals?.seen ?? 0} loading={loading} />
-        <TodayNumber label="No-shows" value={totals?.noShow ?? 0} loading={loading} />
+      {/* What needs attention today */}
+      <div className={`grid grid-cols-2 gap-4 mb-6 ${labEnabled ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+        <StatTile
+          label="Still to see"
+          value={totals?.toSee ?? 0}
+          hint={totals ? `${totals.waiting} waiting in the queue` : undefined}
+          icon={<FaUserClock />}
+          loading={loading}
+          to="/all-appointments"
+        />
+        <StatTile label="Seen today" value={totals?.seen ?? 0} icon={<FaCheckCircle />} loading={loading} />
+        <StatTile
+          label="No-shows today"
+          value={totals?.noShow ?? 0}
+          hint={totals ? `${totals.cancelled} cancelled` : undefined}
+          icon={<FaUserSlash />}
+          loading={loading}
+        />
+        {labEnabled && (
+          <StatTile
+            label="Lab requests open"
+            value={labCounts.open ?? 0}
+            hint={labCounts.waitingForDoctor ? `${labCounts.waitingForDoctor} reports waiting for doctors` : "Waiting for the lab"}
+            icon={<FaFlask />}
+            loading={loading}
+            to="/lab-requests"
+          />
+        )}
+        <StatTile
+          label="Leave to review"
+          value={dashData?.pendingLeave ?? 0}
+          tone={dashData?.pendingLeave ? "warning" : undefined}
+          hint="Doctors' leave requests"
+          icon={<FaCalendarTimes />}
+          loading={loading}
+          to="/leave-management"
+        />
       </div>
 
-      {attention.length > 0 && (
-        <ul className="mt-5 space-y-2">
-          {attention.map((a) => (
-            <li key={a.to}>
-              <Link to={a.to} className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 hover:bg-amber-100">
-                <span className="flex items-center gap-3 font-medium">
-                  <span aria-hidden="true">{a.icon}</span>
-                  {a.text}
-                </span>
-                <FaChevronRight aria-hidden="true" />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <Card padded={false} className="mt-5 overflow-hidden">
-        <div className="px-5 pt-5 pb-2">
-          <h2 className="text-lg font-semibold text-slate-900">Doctors today</h2>
+      {/* Each doctor's day */}
+      <Card padded={false} className="mb-6 overflow-hidden">
+        <div className="px-5 pt-5">
+          <CardHeader title="Doctors today" description="Updates every minute. Open a doctor's queue to check patients in." />
         </div>
         {loading ? (
           <div className="space-y-3 px-5 pb-5">
@@ -174,6 +192,104 @@ const Dashboard = () => {
           />
         )}
       </Card>
+
+      {/* Latest bookings */}
+      <Card padded={false} className="mb-6 overflow-hidden">
+        <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5">
+          <CardHeader title="Latest bookings" description="The most recent appointments, newest first" />
+          <div className="flex items-center gap-4 text-sm text-slate-600">
+            <span className="flex items-center gap-1">
+              <FaWhatsapp aria-hidden="true" className="text-emerald-700" /> WhatsApp
+            </span>
+            <span className="flex items-center gap-1">
+              <FaEnvelope aria-hidden="true" className="text-primary-700" /> Email
+            </span>
+          </div>
+        </div>
+        {loading ? (
+          <div className="space-y-3 px-5 pb-5">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : dashData.latestAppointments.length ? (
+          <ul className="divide-y divide-slate-100 border-t border-slate-100">
+            {dashData.latestAppointments.map((item) => {
+              const pending = !item.cancelled && !item.isCompleted && item.status !== "no_show";
+              return (
+                <li key={item._id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Avatar src={item.docData.image} name={item.docData.name} className="h-10 w-10 shrink-0" textClass="text-sm" />
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-slate-900">{item.userData.name}</p>
+                      <p className="text-sm text-slate-600">
+                        Dr. {item.docData.name} · <span className="whitespace-nowrap">{slotDateFormat(item.slotDate)}, {item.slotTime}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {item.userData.whatsappEnabled ? (
+                      <FaWhatsapp className="text-emerald-700" title="WhatsApp messages on" aria-label="WhatsApp messages on" />
+                    ) : (
+                      item.userData.email && <FaEnvelope className="text-primary-700" title="Email only" aria-label="Email only" />
+                    )}
+                    <AppointmentStatus item={item} />
+                    {pending && (
+                      <IconButton
+                        label={`Cancel ${item.userData?.name || "this patient"}'s appointment`}
+                        tone="danger"
+                        icon={<FaTimes />}
+                        onClick={async () =>
+                          (await confirm({
+                            title: `Cancel ${item.userData?.name || "this patient"}'s appointment?`,
+                            message: "The time slot is freed and the patient is told on WhatsApp (if they agreed to messages).",
+                            confirmLabel: "Cancel appointment",
+                            tone: "danger",
+                          })) && cancelAppointment(item._id)
+                        }
+                      />
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <EmptyState
+            icon={<FaCalendarCheck />}
+            title="No appointments yet"
+            description="New bookings will appear here."
+            action={<Button variant="primary" onClick={() => navigate("/book-appointment")}>Book appointment</Button>}
+          />
+        )}
+      </Card>
+
+      {/* Hospital profit by day / week / month, per doctor or all */}
+      <div className="mb-6">
+        <ProfitReport mode="admin" headers={{ atoken: aToken }} doctors={doctors} />
+      </div>
+
+      {/* All-time numbers */}
+      <h2 className="mb-3 text-lg font-semibold text-slate-900">All time</h2>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <StatTile label="Doctors" value={dashData?.doctors} icon={<FaUserMd />} loading={loading} to="/doctors" />
+        <StatTile label="Patients" value={dashData?.patients} icon={<FaUsers />} loading={loading} to="/patients" />
+        <StatTile label="Appointments" value={dashData?.appointments} icon={<FaCalendarCheck />} loading={loading} to="/all-appointments" />
+        <StatTile
+          label="WhatsApp enabled"
+          value={whatsappStats.enabledUsers}
+          hint={`${whatsappStats.todayNotifications} message${whatsappStats.todayNotifications === 1 ? "" : "s"} sent today`}
+          icon={<FaWhatsapp />}
+          loading={loading}
+        />
+        {/* Of patients who should have come (and didn't cancel ahead), how many never showed */}
+        <StatTile
+          label="No-shows (30 days)"
+          value={last30 ? last30.noShow : 0}
+          hint={last30 ? `${last30.noShowRate}% missed · ${last30.cancelled} cancelled ahead` : undefined}
+          icon={<FaUserSlash />}
+          loading={loading}
+        />
+      </div>
     </div>
   );
 };
