@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from "react";
 import { useDialog } from "../../components/ui/Dialog";
 import Avatar from "../../components/ui/Avatar";
 import ShareField from "../../components/ShareField";
+import { Link } from "react-router-dom";
 import { AdminContext } from "../../context/AdminContext.jsx";
 import { FaEdit, FaTrash, FaPlus, FaSearch, FaToggleOn, FaToggleOff } from "react-icons/fa";
 import { toast } from "react-toastify";
@@ -9,7 +10,7 @@ import axios from "axios";
 
 const ManageDoctors = () => {
   const { confirm } = useDialog();
-  const { doctors, aToken, getAllDoctors, changeAvailability, backendUrl } = useContext(AdminContext);
+  const { doctors, aToken, getAllDoctors, changeAvailability, backendUrl, leaveStats } = useContext(AdminContext);
   const [filteredDoctors, setFilteredDoctors] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterSpeciality, setFilterSpeciality] = useState("all");
@@ -140,15 +141,26 @@ const ManageDoctors = () => {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Manage Doctors</h1>
-            <p className="text-gray-600 mt-1">View, edit, and manage all doctors in the system</p>
+            <h1 className="text-2xl font-semibold text-slate-900">Doctors</h1>
+            <p className="text-gray-600 mt-1">Doctors, their days and fees, and leave requests</p>
           </div>
-          <button 
-            onClick={() => window.location.href = '/add-doctor'}
-            className="flex items-center gap-2 bg-primary-700 text-white px-4 py-2 rounded-lg hover:bg-primary-800 transition-colors"
-          >
-            <FaPlus /> Add New Doctor
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              to="/leave-management"
+              className="flex items-center gap-2 border border-slate-300 bg-white text-slate-900 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              Leave requests
+              {leaveStats?.pending > 0 && (
+                <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-semibold flex items-center justify-center">{leaveStats.pending}</span>
+              )}
+            </Link>
+            <Link
+              to="/add-doctor"
+              className="flex items-center gap-2 bg-primary-700 text-white px-4 py-2 rounded-lg hover:bg-primary-800 transition-colors"
+            >
+              <FaPlus /> Add doctor
+            </Link>
+          </div>
         </div>
 
         {/* Filters */}

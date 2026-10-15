@@ -5,7 +5,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AdminContext } from "./context/AdminContext";
 import Navbar from "./components/Navbar";
-import Sidebar from "./components/Sidebar";
+import Sidebar, { AdminBottomNav } from "./components/Sidebar";
 import Dashboard from "./pages/Admin/Dashboard.jsx";
 import AllAppointments from "./pages/Admin/AllAppointments.jsx";
 import AddDoctor from "./pages/Admin/AddDoctor.jsx";
@@ -13,6 +13,7 @@ import ManageDoctors from "./pages/Admin/ManageDoctors.jsx";
 import AddPatient from "./pages/Admin/AddPatient.jsx";
 import ManagePatients from "./pages/Admin/ManagePatients.jsx";
 import Settings from "./pages/Admin/Settings.jsx";
+import Reports from "./pages/Admin/Reports.jsx";
 import BookAppointmentForPatient from "./pages/Admin/BookAppointmentForPatient.jsx";
 import { DoctorContext } from "./context/DoctorContext.jsx";
 import DoctorDashboard from "./pages/Doctor/DoctorDashboard.jsx";
@@ -46,7 +47,8 @@ const App = () => {
             <Navbar onMenuClick={() => setNavOpen(true)} />
             <div className="flex">
               <Sidebar mobileOpen={navOpen} onClose={closeNav} />
-              <main className="flex-1 min-w-0">
+              {/* Reception on phones/tablets: room for the bottom bar */}
+              <main className={`flex-1 min-w-0 ${aToken ? "pb-20 lg:pb-0" : ""}`}>
               {aToken ? (
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
@@ -59,6 +61,7 @@ const App = () => {
                   <Route path="/add-patient" element={<AddPatient />} />
                   <Route path="/leave-management" element={<AdminLeaveManagement />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/reports" element={<Reports />} />
                   <Route path="/lab-requests" element={<LabOrders />} />
                   <Route path="/lab-requests/:id" element={<LabOrderDetail />} />
                   <Route path="/lab-tests" element={<LabTests />} />
@@ -86,6 +89,7 @@ const App = () => {
               )}
               </main>
             </div>
+            {aToken && <AdminBottomNav onMore={() => setNavOpen(true)} />}
           </div>
         </NotificationProvider>
       ) : (

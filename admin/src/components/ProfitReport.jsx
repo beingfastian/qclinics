@@ -322,7 +322,7 @@ const ProfitReport = ({ mode = "admin", headers: headersProp, doctors = [] }) =>
           {mode === "admin" && report.doctorsWithoutShare?.length > 0 && (
             <p className="mb-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900 flex items-start gap-2">
               <FaExclamationTriangle className="mt-0.5 shrink-0" />
-              No hospital share set for: {report.doctorsWithoutShare.map((n) => `Dr. ${n}`).join(", ")}. Their visits count as 0 profit until you set it in Manage Doctors.
+              No hospital share set for: {report.doctorsWithoutShare.map((n) => `Dr. ${n}`).join(", ")}. Their visits count as 0 profit until you set it on the Doctors page.
             </p>
           )}
 
