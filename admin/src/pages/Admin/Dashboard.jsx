@@ -36,7 +36,8 @@ import {
 
 const REFRESH_MS = 60000; // queue numbers move all day; keep the screen current
 
-const todayText = () => new Date().toLocaleDateString("en-PK", { weekday: "long", day: "numeric", month: "long" });
+// Hospital time (Pakistan), whatever the computer's clock is set to
+const todayText = () => new Date().toLocaleDateString("en-PK", { timeZone: "Asia/Karachi", weekday: "long", day: "numeric", month: "long" });
 
 // One doctor's day: who is with them, who is waiting, who is still to come
 const DoctorTodayRow = ({ row, onOpenQueue }) => {
@@ -60,15 +61,15 @@ const DoctorTodayRow = ({ row, onOpenQueue }) => {
           </div>
         </div>
       </div>
-      <dl className="grid flex-1 grid-cols-5 gap-2">
+      <dl className="grid flex-1 grid-cols-3 gap-x-2 gap-y-3 sm:grid-cols-5">
         {numbers.map((n) => (
           <div key={n.label} className="min-w-0">
-            <dt className="truncate text-xs text-slate-500">{n.label}</dt>
+            <dt className="text-xs text-slate-500">{n.label}</dt>
             <dd className="font-display text-lg font-semibold tabular-nums text-slate-900">{n.value}</dd>
           </div>
         ))}
       </dl>
-      <Button size="sm" icon={<FaListOl />} onClick={() => onOpenQueue(row.docId)} className="lg:w-auto">
+      <Button size="sm" icon={<FaListOl />} onClick={() => onOpenQueue(row.docId)} className="w-full sm:w-auto">
         Open queue
       </Button>
     </li>
@@ -192,11 +193,6 @@ const Dashboard = () => {
         )}
       </Card>
 
-      {/* Hospital profit by day / week / month, per doctor or all */}
-      <div className="mb-6">
-        <ProfitReport mode="admin" headers={{ atoken: aToken }} doctors={doctors} />
-      </div>
-
       {/* Latest bookings */}
       <Card padded={false} className="mb-6 overflow-hidden">
         <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5">
@@ -225,8 +221,8 @@ const Dashboard = () => {
                     <Avatar src={item.docData.image} name={item.docData.name} className="h-10 w-10 shrink-0" textClass="text-sm" />
                     <div className="min-w-0">
                       <p className="truncate font-medium text-slate-900">{item.userData.name}</p>
-                      <p className="truncate text-sm text-slate-600">
-                        Dr. {item.docData.name} · {slotDateFormat(item.slotDate)}, {item.slotTime}
+                      <p className="text-sm text-slate-600">
+                        Dr. {item.docData.name} · <span className="whitespace-nowrap">{slotDateFormat(item.slotDate)}, {item.slotTime}</span>
                       </p>
                     </div>
                   </div>
@@ -234,7 +230,7 @@ const Dashboard = () => {
                     {item.userData.whatsappEnabled ? (
                       <FaWhatsapp className="text-emerald-700" title="WhatsApp messages on" aria-label="WhatsApp messages on" />
                     ) : (
-                      <FaEnvelope className="text-primary-700" title="Email only" aria-label="Email only" />
+                      item.userData.email && <FaEnvelope className="text-primary-700" title="Email only" aria-label="Email only" />
                     )}
                     <AppointmentStatus item={item} />
                     {pending && (
@@ -267,12 +263,17 @@ const Dashboard = () => {
         )}
       </Card>
 
+      {/* Hospital profit by day / week / month, per doctor or all */}
+      <div className="mb-6">
+        <ProfitReport mode="admin" headers={{ atoken: aToken }} doctors={doctors} />
+      </div>
+
       {/* All-time numbers */}
       <h2 className="mb-3 text-lg font-semibold text-slate-900">All time</h2>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatTile label="Doctors" value={dashData?.doctors} icon={<FaUserMd />} loading={loading} to="/doctors" />
         <StatTile label="Patients" value={dashData?.patients} icon={<FaUsers />} loading={loading} to="/patients" />
-        <StatTile label="Appointments" value={dashData?.appointments} icon={<FaCalendarCheck />} loading={loading} />
+        <StatTile label="Appointments" value={dashData?.appointments} icon={<FaCalendarCheck />} loading={loading} to="/all-appointments" />
         <StatTile
           label="WhatsApp enabled"
           value={whatsappStats.enabledUsers}
