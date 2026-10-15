@@ -89,6 +89,24 @@ try {
   check("Doctor dashboard shows the break", mine?.paused === true);
   const sanaDash = await get("/api/doctor/dashboard", { dtoken: sign({ role: "doctor", id: String(sana._id) }) });
   check("Other doctor sees none of it", sanaDash.dashData?.today?.toSee === 0 && sanaDash.dashData?.today?.waiting === 0);
+
+  // "Patient arrived": search shows today's appointments to check in and tokens already held
+  const found = (await q.searchPatients("0300 1234567", { withToday: true }))[0];
+  const toCheckIn = found?.appointmentsToday || [];
+  check(
+    "Search: today's open appointments (not completed, cancelled, other days)",
+    toCheckIn.length === 2 && toCheckIn.every((a) => a.doctorName === "Muhammad Iqbal") && toCheckIn.map((a) => a.slotTime).join() === "09:00 AM,10:00 AM",
+    JSON.stringify(toCheckIn)
+  );
+  await q.issueToken({ docId: String(iqbal._id), appointmentId: String(toCheckIn[0]._id), actor: { role: "admin" } });
+  const after = (await q.searchPatients("Aslam", { withToday: true }))[0];
+  check("Search: a checked-in appointment drops off the list", after.appointmentsToday.length === 1 && after.appointmentsToday[0].slotTime === "10:00 AM");
+  check(
+    "Search: token already held today is shown",
+    after.tokensToday.length === 1 && after.tokensToday[0].doctorName === "Muhammad Iqbal" && after.tokensToday[0].status === "waiting",
+    JSON.stringify(after.tokensToday)
+  );
+  check("Search without withToday is unchanged (doctors)", !("appointmentsToday" in (await q.searchPatients("Aslam"))[0]));
 } catch (error) {
   console.error("TEST CRASHED:", error);
   failures++;
