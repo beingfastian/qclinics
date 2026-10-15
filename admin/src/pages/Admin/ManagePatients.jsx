@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from "react";
 import { useDialog } from "../../components/ui/Dialog";
 import Avatar from "../../components/ui/Avatar";
 import LanguageSelect from "../../components/LanguageSelect";
+import { Link } from "react-router-dom";
 import { AdminContext } from "../../context/AdminContext.jsx";
 import { AppContext } from "../../context/AppContext.jsx";
 import { FaEdit, FaTrash, FaPlus, FaSearch, FaWhatsapp, FaEnvelope } from "react-icons/fa";
@@ -175,15 +176,15 @@ const ManagePatients = () => {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Manage Patients</h1>
+            <h1 className="text-2xl font-semibold text-slate-900">Patients</h1>
             <p className="text-gray-600 mt-1">View, edit, and manage all patients in the system</p>
           </div>
-          <button 
-            onClick={() => window.location.href = '/add-patient'}
+          <Link
+            to="/add-patient"
             className="flex items-center gap-2 bg-primary-700 text-white px-4 py-2 rounded-lg hover:bg-primary-800 transition-colors"
           >
-            <FaPlus /> Add New Patient
-          </button>
+            <FaPlus /> Add patient
+          </Link>
         </div>
 
         {/* Filters */}

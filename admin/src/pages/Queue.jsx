@@ -690,7 +690,7 @@ const Queue = () => {
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Live Queue</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Queue</h1>
           <p className="text-sm text-gray-500">{queue ? slotDateFormat(queue.day) : "Today"} · tokens restart at 1 every day</p>
         </div>
         {headerButtons}
