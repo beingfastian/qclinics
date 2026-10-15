@@ -18,7 +18,7 @@ const todayText = () => new Date().toLocaleDateString("en-PK", { timeZone: "Asia
 
 // The four things reception does all day
 const TASKS = [
-  { to: "/arrived", icon: <FaUserPlus />, title: "Patient arrived", text: "Check in or give a token", primary: true },
+  { to: "/queue", icon: <FaUserPlus />, title: "Patient arrived", text: "Check in or give a token", primary: true },
   { to: "/book-appointment", icon: <FaCalendarPlus />, title: "Book appointment", text: "For today or another day" },
   { to: "/queue", icon: <FaListOl />, title: "Today's queue", text: "Who is waiting, call next" },
   { to: "/patients", icon: <FaSearch />, title: "Find a patient", text: "By phone, name or CNIC" },

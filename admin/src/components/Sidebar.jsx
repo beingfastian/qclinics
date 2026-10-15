@@ -31,7 +31,7 @@ const adminSections = [
     key: "main",
     items: [
       { path: "/", icon: <FaHome />, label: "Home", end: true },
-      { path: "/queue", icon: <FaListOl />, label: "Queue", also: ["/arrived"] },
+      { path: "/queue", icon: <FaListOl />, label: "Queue" },
       { path: "/all-appointments", icon: <FaCalendarAlt />, label: "Appointments", also: ["/book-appointment"] },
       { path: "/patients", icon: <FaUsers />, label: "Patients", also: ["/add-patient"] },
       { path: "/doctors", icon: <FaUserMd />, label: "Doctors", also: ["/add-doctor", "/leave-management"], badge: "pendingLeave" },
@@ -301,7 +301,7 @@ export const AdminBottomNav = ({ onMore }) => {
         <FaListOl aria-hidden="true" className="text-lg" />
         Queue
       </NavLink>
-      <NavLink to="/arrived" className="flex flex-col items-center gap-0.5 text-[11px] font-medium text-gray-700">
+      <NavLink to="/queue" className="flex flex-col items-center gap-0.5 text-[11px] font-medium text-gray-700">
         <span aria-hidden="true" className="-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white shadow-md">
           <FaUserPlus />
         </span>

@@ -118,7 +118,7 @@ export const patients = async (req, res) => {
     return res.status(403).json({ success: false, message: "You don't have access to this" });
   }
   try {
-    res.json({ success: true, patients: await searchPatients(req.query.q, { withToday: req.recipientType === "admin" }) });
+    res.json({ success: true, patients: await searchPatients(req.query.q) });
   } catch (error) {
     fail(res, error);
   }
