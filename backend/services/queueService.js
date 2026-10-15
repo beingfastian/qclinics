@@ -681,7 +681,10 @@ export const publicToken = async (publicId) => {
 
 // Find patients for reception: by phone (any format), CNIC, or name. Family members
 // sharing a phone all appear, so reception picks the right one.
-export const searchPatients = async (query) => {
+// withToday (reception): also each patient's appointments still to check in today and
+// tokens they already hold, so "Patient arrived" can check them in instead of
+// giving a second token.
+export const searchPatients = async (query, { withToday = false } = {}) => {
   const text = String(query || "").trim().slice(0, 60);
   if (text.length < 2) return [];
   const digits = text.replace(/\D/g, "");
@@ -696,6 +699,7 @@ export const searchPatients = async (query) => {
   }
   const now = new Date();
   const users = await userModel.find(filter).select("name phone gender dob cnic whatsappEnabled whatsappNumber language").limit(10).lean();
+  const todayFor = withToday && users.length ? await patientsToday(users.map((u) => String(u._id))) : null;
   return users.map((u) => ({
     _id: u._id,
     name: u.name,
@@ -705,5 +709,30 @@ export const searchPatients = async (query) => {
     cnicLast4: u.cnic ? u.cnic.slice(-4) : undefined,
     whatsappEnabled: Boolean(u.whatsappEnabled),
     language: u.language,
+    ...(todayFor && todayFor(String(u._id))),
   }));
+};
+
+const patientsToday = async (userIds) => {
+  const day = today();
+  const [appointments, tokens] = await Promise.all([
+    appointmentModel
+      .find({ userId: { $in: userIds }, slotDate: day, cancelled: { $ne: true }, isCompleted: { $ne: true }, type: { $ne: "walk_in" } })
+      .sort({ startAt: 1 })
+      .select("userId docId slotTime")
+      .lean(),
+    queueTokenModel.find({ userId: { $in: userIds }, day }).select("userId docId number status appointmentId").lean(),
+  ]);
+  const checkedIn = new Set(tokens.filter((t) => t.appointmentId).map((t) => t.appointmentId));
+  const docIds = [...new Set([...appointments, ...tokens].map((x) => String(x.docId)))];
+  const doctors = docIds.length ? await doctorModel.find({ _id: { $in: docIds } }).select("name").lean() : [];
+  const names = new Map(doctors.map((d) => [String(d._id), d.name]));
+  return (userId) => ({
+    appointmentsToday: appointments
+      .filter((a) => String(a.userId) === userId && !checkedIn.has(String(a._id)))
+      .map((a) => ({ _id: a._id, docId: a.docId, doctorName: names.get(String(a.docId)) || "", slotTime: a.slotTime })),
+    tokensToday: tokens
+      .filter((t) => String(t.userId) === userId && ["waiting", "called"].includes(t.status))
+      .map((t) => ({ docId: t.docId, doctorName: names.get(String(t.docId)) || "", number: t.number, status: t.status })),
+  });
 };

@@ -14,6 +14,7 @@ import AddPatient from "./pages/Admin/AddPatient.jsx";
 import ManagePatients from "./pages/Admin/ManagePatients.jsx";
 import Settings from "./pages/Admin/Settings.jsx";
 import Reports from "./pages/Admin/Reports.jsx";
+import PatientArrived from "./pages/Admin/PatientArrived.jsx";
 import BookAppointmentForPatient from "./pages/Admin/BookAppointmentForPatient.jsx";
 import { DoctorContext } from "./context/DoctorContext.jsx";
 import DoctorDashboard from "./pages/Doctor/DoctorDashboard.jsx";
@@ -53,6 +54,7 @@ const App = () => {
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/queue" element={<Queue />} />
+                  <Route path="/arrived" element={<PatientArrived />} />
                   <Route path="/all-appointments" element={<AllAppointments />} />
                   <Route path="/book-appointment" element={<BookAppointmentForPatient />} />
                   <Route path="/doctors" element={<ManageDoctors />} />
