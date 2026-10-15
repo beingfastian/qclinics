@@ -24,6 +24,7 @@ const { default: doctorRouter } = await import("../routes/doctorRoute.js");
 const { default: adminRouter } = await import("../routes/adminRoute.js");
 const { default: doctorModel } = await import("../model/doctorModel.js");
 const { labStaffModel } = await import("../model/labModel.js");
+const { default: otpModel } = await import("../model/otpModel.js");
 
 const app = express();
 app.use(express.json());
@@ -83,6 +84,56 @@ try {
   // Old per-role sign-ins still work
   res = await fetch(base + "/api/doctor/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: "Ahmed.Raza@hmc.com", password: "doctor-pass-1" }) });
   check("Old doctor sign-in still works", (await res.json()).success === true);
+
+  // ---- Forgot password ----
+  const post = async (path, body) =>
+    (await fetch(base + "/api/auth/" + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json();
+  // Emails are off in checks, so the test "receives" the OTP by putting a known one in place
+  const setKnownOtp = (otp) => otpModel.updateOne({ email: "ahmed.raza@hmc.com" }, { otpHash: bcrypt.hashSync(otp, 4) });
+  const records = () => otpModel.find({ email: "ahmed.raza@hmc.com" }).lean();
+  const backdate = (ms) => otpModel.updateMany({}, [{ $set: { createdAt: { $subtract: ["$createdAt", ms] } } }]);
+
+  r = await post("forgot-password", { email: "  AHMED.raza@HMC.com " });
+  check("Reset: email matched regardless of capitals", r.success && (await records()).length === 1);
+  r = await post("forgot-password", { email: "nobody@hmc.com" });
+  check("Reset: unknown email gets the same answer", r.success && r.message === (await post("forgot-password", { email: "nobody@hmc.com" })).message);
+  await post("forgot-password", { email: "ahmed.raza@hmc.com" });
+  check("Reset: second request within a minute sends nothing new", (await records())[0].sends === 1);
+
+  await setKnownOtp("123456");
+  r = await post("verify-otp", { email: "Ahmed.Raza@hmc.com", otp: "654321" });
+  check("Reset: wrong OTP refused", !r.success);
+  r = await post("verify-otp", { email: "Ahmed.Raza@hmc.com", otp: "123456" });
+  check("Reset: right OTP (email in other capitals) gives a reset token", r.success && r.resetToken);
+  const resetToken = r.resetToken;
+  r = await post("verify-otp", { email: "ahmed.raza@hmc.com", otp: "123456" });
+  check("Reset: an OTP works only once", !r.success);
+
+  r = await post("reset-password", { resetToken, newPassword: "new-pass-123", confirmPassword: "new-pass-123" });
+  check("Reset: new password saved", r.success === true, JSON.stringify(r));
+  check("Reset: signs in with the new password", (await login("ahmed.raza@hmc.com", "new-pass-123")).success === true);
+  check("Reset: old password no longer works", (await login("ahmed.raza@hmc.com", "doctor-pass-1")).success === false);
+  r = await post("reset-password", { resetToken, newPassword: "attacker-pass-9", confirmPassword: "attacker-pass-9" });
+  check("Reset: the same reset token can't be used again", !r.success && /already used/.test(r.message), JSON.stringify(r));
+  check("Reset: password unchanged by the reused token", (await login("ahmed.raza@hmc.com", "new-pass-123")).success === true);
+
+  // Hourly limit: at most 5 OTPs, one a minute
+  for (let i = 0; i < 6; i++) {
+    await backdate(2 * 60 * 1000);
+    await post("forgot-password", { email: "ahmed.raza@hmc.com" });
+  }
+  const after = await records();
+  check("Reset: at most 5 OTPs an hour", after.length === 1 && after[0].sends === 5, JSON.stringify(after.map((x) => x.sends)));
+  await otpModel.updateMany({}, { windowStart: new Date(Date.now() - 61 * 60 * 1000) });
+  await backdate(2 * 60 * 1000);
+  await post("forgot-password", { email: "ahmed.raza@hmc.com" });
+  check("Reset: next hour, OTPs can be sent again", (await records())[0].sends === 1);
+
+  // Too many wrong guesses
+  await setKnownOtp("111111");
+  for (let i = 0; i < 5; i++) await post("verify-otp", { email: "ahmed.raza@hmc.com", otp: "222222" });
+  r = await post("verify-otp", { email: "ahmed.raza@hmc.com", otp: "111111" });
+  check("Reset: after 5 wrong guesses even the right OTP is refused", !r.success && /Too many/.test(r.message));
 } catch (error) {
   console.error("TEST CRASHED:", error);
   failures++;

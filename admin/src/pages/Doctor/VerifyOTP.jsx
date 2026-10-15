@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import axios from "axios";
 import BrandLogo from "../../components/ui/BrandLogo";
@@ -10,9 +10,16 @@ const VerifyOTP = () => {
   const email = searchParams.get("email") || "";
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
+  const navigate = useNavigate();
+  // A new OTP can be asked for after a minute (the server allows one a minute, 5 an hour)
+  const RESEND_AFTER = 60;
+  const [timeLeft, setTimeLeft] = useState(RESEND_AFTER);
   const [canResend, setCanResend] = useState(false);
   const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
+
+  useEffect(() => {
+    if (!email) navigate("/forgot-password", { replace: true });
+  }, [email, navigate]);
 
   // Timer countdown
   useEffect(() => {
@@ -36,8 +43,8 @@ const VerifyOTP = () => {
       );
       
       if (data.success) {
-        toast.success("OTP resent successfully");
-        setTimeLeft(600); // Reset timer
+        toast.success(data.message);
+        setTimeLeft(RESEND_AFTER);
         setCanResend(false);
       } else {
         toast.error(data.message);
@@ -67,7 +74,7 @@ const VerifyOTP = () => {
         toast.success(data.message);
         // The reset token proves the OTP was verified; it expires in 10 minutes
         sessionStorage.setItem("resetToken", data.resetToken);
-        window.location.href = "/reset-password";
+        navigate("/reset-password");
       } else {
         toast.error(data.message);
       }
@@ -91,7 +98,7 @@ const VerifyOTP = () => {
         <div className="bg-primary p-6 text-center">
           <div className="mx-auto mb-3 inline-block rounded-xl bg-white px-4 py-2"><BrandLogo size="sm" /></div>
           <h2 className="text-2xl font-bold text-white">Verify OTP</h2>
-          <p className="text-primary-100 mt-2">Enter the OTP sent to your email</p>
+          <p className="text-primary-100 mt-2">Enter the 6-digit code sent to {email || "your email"}. It works for 10 minutes.</p>
         </div>
         
         <form onSubmit={handleSubmit} className="p-6">

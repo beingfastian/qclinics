@@ -61,31 +61,69 @@ export const login = async (req, res) => {
   }
 };
 
+// --- Password reset (doctors): email a 6-digit OTP, verify it, set a new password ---
+//
+// Limits, per account (kept in the otp record, so they also hold on Vercel where
+// there is no long-running server memory):
+//   - a new OTP at most once a minute, and at most OTP_MAX_SENDS per hour
+//   - OTP_MAX_ATTEMPTS wrong guesses per OTP
+// The reset token from verifyOTP works once: it carries a fingerprint of the current
+// password, so after the password changes the same token is refused.
+const OTP_COOLDOWN_MS = 60 * 1000;
+const OTP_WINDOW_MS = 60 * 60 * 1000;
+const OTP_MAX_SENDS = 5;
+
+const findDoctorByEmail = (email) =>
+  doctorModel.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: "i" } });
+const otpKey = (email) => String(email || "").trim().toLowerCase();
+const passwordFingerprint = (doctor) =>
+  crypto.createHmac("sha256", process.env.JWT_SECRET).update(String(doctor.password)).digest("base64url").slice(0, 22);
+
 // Request password reset
 export const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = String(req.body.email || "").trim();
     if (!email) {
       return res.status(400).json({ success: false, message: "Email is required" });
     }
 
-    // Same response whether or not the doctor exists, so emails can't be enumerated
-    const doctor = await doctorModel.findOne({ email });
+    // Same response whether or not the doctor exists (or a limit was hit), so
+    // emails can't be enumerated
+    const doctor = await findDoctorByEmail(email);
     if (!doctor) {
       return res.json({ success: true, message: GENERIC_OTP_MESSAGE });
     }
 
-    const otp = generateOTP();
+    const key = otpKey(doctor.email);
+    const now = Date.now();
+    const previous = await otpModel.findOne({ email: key }).sort({ createdAt: -1 });
+    const inWindow = previous?.windowStart && now - previous.windowStart.getTime() < OTP_WINDOW_MS;
+    const sends = inWindow ? previous.sends || 1 : 0;
+    if (previous && now - previous.createdAt.getTime() < OTP_COOLDOWN_MS) {
+      return res.json({ success: true, message: GENERIC_OTP_MESSAGE });
+    }
+    if (sends >= OTP_MAX_SENDS) {
+      console.warn(`Password reset: hourly OTP limit reached for ${key}`);
+      return res.json({ success: true, message: GENERIC_OTP_MESSAGE });
+    }
 
     // Only the newest OTP is valid
-    await otpModel.deleteMany({ email });
+    const otp = generateOTP();
+    const windowStart = inWindow ? previous.windowStart : new Date(now);
+    const otpExpiresAt = new Date(now + OTP_TTL_MS);
+    await otpModel.deleteMany({ email: key });
     await otpModel.create({
-      email,
+      email: key,
       otpHash: await bcrypt.hash(otp, 10),
-      expiresAt: new Date(Date.now() + OTP_TTL_MS),
+      createdAt: new Date(now),
+      otpExpiresAt,
+      sends: sends + 1,
+      windowStart,
+      // The record stays until the hourly window ends, so the limit survives a used OTP
+      expiresAt: new Date(Math.max(otpExpiresAt.getTime(), windowStart.getTime() + OTP_WINDOW_MS)),
     });
 
-    const emailResult = await sendOTPEmail(email, otp);
+    const emailResult = await sendOTPEmail(doctor.email, otp);
     if (!emailResult.success) {
       console.error("OTP email failed:", emailResult.error);
     }
@@ -97,7 +135,7 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
-// Verify OTP and return a short-lived reset token
+// Verify OTP and return a short-lived, one-time reset token
 export const verifyOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -105,13 +143,13 @@ export const verifyOTP = async (req, res) => {
       return res.status(400).json({ success: false, message: "Email and OTP are required" });
     }
 
-    const otpRecord = await otpModel.findOne({ email });
-    if (!otpRecord || otpRecord.expiresAt < new Date()) {
+    const otpRecord = await otpModel.findOne({ email: otpKey(email) }).sort({ createdAt: -1 });
+    const validUntil = otpRecord?.otpExpiresAt || otpRecord?.expiresAt;
+    if (!otpRecord || otpRecord.usedAt || !validUntil || validUntil < new Date()) {
       return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
     }
 
     if (otpRecord.attempts >= MAX_OTP_ATTEMPTS) {
-      await otpModel.deleteOne({ _id: otpRecord._id });
       return res.status(400).json({ success: false, message: "Too many attempts. Please request a new OTP." });
     }
 
@@ -122,10 +160,17 @@ export const verifyOTP = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
     }
 
-    await otpModel.deleteOne({ _id: otpRecord._id });
+    const doctor = await findDoctorByEmail(otpRecord.email);
+    if (!doctor) {
+      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
+    }
+
+    // Used: can't be verified again (the record stays for the hourly limit)
+    otpRecord.usedAt = new Date();
+    await otpRecord.save();
 
     const resetToken = jwt.sign(
-      { email, purpose: "password-reset" },
+      { id: String(doctor._id), purpose: "password-reset", pw: passwordFingerprint(doctor) },
       process.env.JWT_SECRET,
       { expiresIn: "10m" }
     );
@@ -152,7 +197,7 @@ export const resetPassword = async (req, res) => {
     } catch {
       return res.status(400).json({ success: false, message: "Reset link expired. Please start over." });
     }
-    if (payload.purpose !== "password-reset") {
+    if (payload.purpose !== "password-reset" || !payload.id || !payload.pw) {
       return res.status(400).json({ success: false, message: "Invalid reset token" });
     }
 
@@ -160,20 +205,28 @@ export const resetPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: "Passwords do not match" });
     }
 
-    if (newPassword.length < 8) {
+    if (String(newPassword).length < 8) {
       return res.status(400).json({
         success: false,
         message: "Password should be at least 8 characters long"
       });
     }
 
-    const doctor = await doctorModel.findOne({ email: payload.email });
+    const doctor = await doctorModel.findById(payload.id);
     if (!doctor) {
       return res.status(400).json({ success: false, message: "Invalid reset token" });
     }
+    // The password already changed since this token was given: it was used
+    if (passwordFingerprint(doctor) !== payload.pw) {
+      return res.status(400).json({ success: false, message: "This reset link was already used. Please start over." });
+    }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await doctorModel.findByIdAndUpdate(doctor._id, { password: hashedPassword });
+    const hashedPassword = await bcrypt.hash(String(newPassword), 10);
+    // Only if the password is still the one the token was made for (two tabs at once)
+    const updated = await doctorModel.updateOne({ _id: doctor._id, password: doctor.password }, { password: hashedPassword });
+    if (!updated.modifiedCount) {
+      return res.status(400).json({ success: false, message: "This reset link was already used. Please start over." });
+    }
 
     res.json({ success: true, message: "Password reset successfully" });
   } catch (error) {
