@@ -88,7 +88,7 @@ const ForgotPassword = () => {
           <div className="mt-6 text-center">
             <p className="text-gray-600">
               Remember your password?{" "}
-              <Link to="/login" className="text-primary-700 hover:text-primary-900 font-medium">
+              <Link to="/" className="text-primary-700 hover:text-primary-900 font-medium">
                 Login
               </Link>
             </p>

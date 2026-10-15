@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import axios from "axios";
 import BrandLogo from "../../components/ui/BrandLogo";
 
 const ResetPassword = () => {
-  const resetToken = sessionStorage.getItem("resetToken") || "";
+  const navigate = useNavigate();
+  // Read once: the token is removed after a successful reset, and that must not
+  // look like "no token" (which sends the user back to the start)
+  const [resetToken] = useState(() => sessionStorage.getItem("resetToken") || "");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -15,10 +18,10 @@ const ResetPassword = () => {
 
   useEffect(() => {
     if (!resetToken) {
-      toast.error("Invalid access. Please start over.");
-      window.location.href = "/forgot-password";
+      toast.error("Please start the password reset again.");
+      navigate("/forgot-password", { replace: true });
     }
-  }, [resetToken]);
+  }, [resetToken, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -47,12 +50,9 @@ const ResetPassword = () => {
       );
       
       if (data.success) {
-        toast.success(data.message);
         sessionStorage.removeItem("resetToken");
-        // Redirect to login page
-        setTimeout(() => {
-          window.location.href = "/";
-        }, 2000);
+        toast.success("Password changed. Sign in with your new password.");
+        navigate("/", { replace: true });
       } else {
         toast.error(data.message);
       }
@@ -157,7 +157,7 @@ const ResetPassword = () => {
           
           <div className="mt-6 text-center">
             <p className="text-gray-600">
-              <Link to="/login" className="text-primary-700 hover:text-primary-900 font-medium">
+              <Link to="/" className="text-primary-700 hover:text-primary-900 font-medium">
                 Back to Login
               </Link>
             </p>
