@@ -819,7 +819,7 @@ const bookAppointmentForPatient = async (req, res) => {
 
   } catch (error) {
     if (!(error instanceof AppointmentError)) console.error('Booking error:', error);
-    res.json({ success: false, message: error.message });
+    res.json({ success: false, message: error.message, code: error.code });
   }
 };
 
