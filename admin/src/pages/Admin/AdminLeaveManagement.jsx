@@ -61,7 +61,7 @@ const AdminLeaveManagement = () => {
     return true;
   });
 
-  const uniqueDoctors = [...new Map(leaveRequests.map(req => [req.doctorId, req.doctorData])).values()];
+  const uniqueDoctors = [...new Map(leaveRequests.map(req => [req.doctorId, { id: req.doctorId, name: req.doctorData?.name }])).values()];
 
   const calculateDays = (fromDate, toDate) => {
     const from = new Date(fromDate);
@@ -201,8 +201,8 @@ const AdminLeaveManagement = () => {
           >
             <option value="all">All Doctors</option>
             {uniqueDoctors.map(doctor => (
-              <option key={doctor?.name || 'unknown'} value={doctor?.name || 'unknown'}>
-                Dr. {doctor?.name || 'Unknown'}
+              <option key={doctor.id} value={doctor.id}>
+                Dr. {doctor.name || 'Unknown'}
               </option>
             ))}
           </select>

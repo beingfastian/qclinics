@@ -23,6 +23,8 @@ const ManageDoctors = () => {
     "Pediatricians", "Neurologist", "Gastroenterologist"
   ];
 
+  const daysOfWeek = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+
   useEffect(() => {
     if (aToken) {
       getAllDoctors();
@@ -61,14 +63,32 @@ const ManageDoctors = () => {
       ...doctor,
       address1: doctor.address?.line1 || "",
       address2: doctor.address?.line2 || "",
-      hospitalSharePercent: doctor.hospitalSharePercent ?? 0
+      hospitalSharePercent: doctor.hospitalSharePercent ?? 0,
+      startTime: doctor.timings?.start || "09:00",
+      endTime: doctor.timings?.end || "17:00",
+      // No days saved means the doctor sits every day
+      sittingDays: doctor.sittingDays?.length ? doctor.sittingDays : daysOfWeek
     });
     setShowEditModal(true);
   };
 
+  const toggleDay = (day) => {
+    const days = editingDoctor.sittingDays;
+    setEditingDoctor({
+      ...editingDoctor,
+      sittingDays: days.includes(day) ? days.filter(d => d !== day) : [...days, day]
+    });
+  };
+
   const updateDoctor = async () => {
     if (!editingDoctor) return;
-    
+    if (!editingDoctor.startTime || !editingDoctor.endTime || editingDoctor.startTime >= editingDoctor.endTime) {
+      return toast.error("End time must be after start time");
+    }
+    if (editingDoctor.sittingDays.length === 0) {
+      return toast.error("Please select at least one working day");
+    }
+
     setLoading(true);
     try {
       const updateData = {
@@ -84,7 +104,10 @@ const ManageDoctors = () => {
           line2: editingDoctor.address2
         },
         available: editingDoctor.available,
-        hospitalSharePercent: editingDoctor.hospitalSharePercent
+        hospitalSharePercent: editingDoctor.hospitalSharePercent,
+        timings: { start: editingDoctor.startTime, end: editingDoctor.endTime },
+        // Kept in week order
+        sittingDays: daysOfWeek.filter(day => editingDoctor.sittingDays.includes(day))
       };
 
       const { data } = await axios.put(
@@ -95,6 +118,12 @@ const ManageDoctors = () => {
 
       if (data.success) {
         toast.success("Doctor updated successfully");
+        if (data.outsideSchedule > 0) {
+          toast.warning(
+            `${data.outsideSchedule} upcoming appointment${data.outsideSchedule > 1 ? "s are" : " is"} outside the new hours or days. Move them from Appointments.`,
+            { autoClose: 10000 }
+          );
+        }
         setShowEditModal(false);
         setEditingDoctor(null);
         getAllDoctors();
@@ -421,6 +450,49 @@ const ManageDoctors = () => {
                   onChange={(e) => setEditingDoctor({...editingDoctor, degree: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Working hours</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="time"
+                    aria-label="Start time"
+                    value={editingDoctor.startTime}
+                    onChange={(e) => setEditingDoctor({...editingDoctor, startTime: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                  />
+                  <input
+                    type="time"
+                    aria-label="End time"
+                    value={editingDoctor.endTime}
+                    onChange={(e) => setEditingDoctor({...editingDoctor, endTime: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">New bookings follow these hours. Existing bookings are not moved.</p>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Working days</label>
+                <div className="flex flex-wrap gap-2">
+                  {daysOfWeek.map(day => (
+                    <label
+                      key={day}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm cursor-pointer ${
+                        editingDoctor.sittingDays.includes(day)
+                          ? "border-primary-600 bg-primary-50 text-primary-800"
+                          : "border-gray-200 text-gray-600"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={editingDoctor.sittingDays.includes(day)}
+                        onChange={() => toggleDay(day)}
+                        className="rounded text-primary-700 focus:ring-primary-600"
+                      />
+                      {day[0].toUpperCase() + day.slice(1, 3)}
+                    </label>
+                  ))}
+                </div>
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">About</label>

@@ -188,9 +188,6 @@ const DoctorContextProvider = (props) => {
   // NEW: Leave management functions
   const requestLeave = async (leaveData) => {
     try {
-      console.log('Requesting leave with token:', dToken);
-      console.log('Leave data:', leaveData);
-      
       const { data } = await axios.post(
         backendUrl + "/api/doctor/request-leave",
         leaveData,
@@ -201,8 +198,6 @@ const DoctorContextProvider = (props) => {
           } 
         }
       );
-      
-      console.log('Leave request response:', data);
       
       if (data.success) {
         toast.success(data.message);
@@ -222,14 +217,10 @@ const DoctorContextProvider = (props) => {
 
   const getLeaveRequests = async () => {
     try {
-      console.log('Getting leave requests with token:', dToken);
-      
       const { data } = await axios.get(
         backendUrl + "/api/doctor/leave-requests",
         { headers: { dToken } }
       );
-      
-      console.log('Leave requests response:', data);
       
       if (data.success) {
         setLeaveRequests(data.leaveRequests);
