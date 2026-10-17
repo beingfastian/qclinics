@@ -31,7 +31,13 @@ import { queueTokenModel } from "../model/queueModel.js";
 import { shareForCompletion } from "./profitService.js";
 
 // An error whose message is safe to show to staff
-export class AppointmentError extends Error {}
+export class AppointmentError extends Error {
+  // `code` lets screens react to a specific problem, e.g. "slot_taken"
+  constructor(message, code) {
+    super(message);
+    this.code = code;
+  }
+}
 
 const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const toMinutes = (hhmm) => {
@@ -153,7 +159,7 @@ export const bookAppointment = async ({
   const docId = doctor._id.toString();
 
   if (!(await reserveSlot(docId, slot.slotDate, slot.slotTime))) {
-    throw new AppointmentError("Selected time slot is not available");
+    throw new AppointmentError("This time was just booked by someone else. Please choose another time.", "slot_taken");
   }
 
   const docSnapshot = doctor.toObject ? doctor.toObject() : { ...doctor };
@@ -345,7 +351,7 @@ export const moveAppointment = async (appointmentId, newSlotDate, newSlotTime, a
   await assertNotOnLeave(doctor, slot.startAt);
 
   if (!(await reserveSlot(appointment.docId, slot.slotDate, slot.slotTime))) {
-    throw new AppointmentError("Selected time slot is not available");
+    throw new AppointmentError("This time was just booked by someone else. Please choose another time.", "slot_taken");
   }
 
   const from = { slotDate: appointment.slotDate, slotTime: appointment.slotTime };

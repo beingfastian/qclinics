@@ -230,6 +230,11 @@ const BookAppointmentForPatient = () => {
         getAllDoctors(); // fresh booked slots
       } else {
         toast.error(data.message);
+        // Another receptionist just took this time: show fresh slots and pick again
+        if (data.code === "slot_taken") {
+          getAllDoctors();
+          setSlotTime("");
+        }
       }
     } catch (error) {
       console.error(error);

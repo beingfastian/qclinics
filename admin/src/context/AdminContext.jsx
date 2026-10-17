@@ -136,6 +136,8 @@ const rescheduleAppointment = async (appointmentId, slotDate, slotTime, reason) 
   if (data.success) {
     toast.success(data.message);
     refreshAfterChange();
+  } else {
+    getAllDoctors(); // the slot may have just been taken; show fresh booked slots
   }
   return data.success;
 };
