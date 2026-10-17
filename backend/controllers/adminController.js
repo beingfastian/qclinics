@@ -150,7 +150,9 @@ const updateDoctor = async (req, res) => {
       degree,
       address,
       available,
-      hospitalSharePercent
+      hospitalSharePercent,
+      timings,
+      sittingDays
     } = req.body;
 
     let sharePercent;
@@ -159,6 +161,20 @@ const updateDoctor = async (req, res) => {
         sharePercent = parsePercent(hospitalSharePercent);
       } catch (error) {
         return res.json({ success: false, message: error.message });
+      }
+    }
+
+    // Working hours and days are optional here; when sent, both must be valid
+    const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const WEEK = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+    if (timings !== undefined) {
+      if (!HHMM.test(timings?.start || "") || !HHMM.test(timings?.end || "") || timings.start >= timings.end) {
+        return res.json({ success: false, message: "Working hours must have a start time before the end time" });
+      }
+    }
+    if (sittingDays !== undefined) {
+      if (!Array.isArray(sittingDays) || sittingDays.length === 0 || sittingDays.some((d) => !WEEK.includes(d))) {
+        return res.json({ success: false, message: "Please select at least one working day" });
       }
     }
 
@@ -197,6 +213,8 @@ const updateDoctor = async (req, res) => {
       degree,
       address,
       available: available !== undefined ? available : doctor.available,
+      ...(timings !== undefined && { timings: { start: timings.start, end: timings.end } }),
+      ...(sittingDays !== undefined && { sittingDays }),
       // A new share applies to visits completed from now on; past visits keep theirs
       ...(sharePercent !== undefined && sharePercent !== (doctor.hospitalSharePercent ?? 0) && {
         hospitalSharePercent: sharePercent,
@@ -204,7 +222,37 @@ const updateDoctor = async (req, res) => {
       }),
     });
 
-    res.json({ success: true, message: "Doctor updated successfully" });
+    // Upcoming bookings stay as they are; tell the admin how many no longer fit the new schedule
+    let outsideSchedule = 0;
+    if (timings !== undefined || sittingDays !== undefined) {
+      const schedule = {
+        name,
+        available: true,
+        timings: timings ?? doctor.timings,
+        sittingDays: sittingDays ?? doctor.sittingDays,
+      };
+      const upcoming = await appointmentModel.find({
+        docId: doctorId,
+        cancelled: { $ne: true },
+        isCompleted: { $ne: true },
+        status: { $ne: "no_show" },
+        startAt: { $gt: new Date() },
+      }).select("slotDate slotTime");
+      for (const apt of upcoming) {
+        try {
+          validateSlot(schedule, apt.slotDate, apt.slotTime, new Date(0));
+        } catch (error) {
+          if (!(error instanceof AppointmentError)) throw error;
+          outsideSchedule += 1;
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: "Doctor updated successfully",
+      outsideSchedule,
+    });
   } catch (error) {
     console.error(error);
     res.json({ success: false, message: error.message });

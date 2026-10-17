@@ -1,5 +1,6 @@
 import twilio from 'twilio';
 import appointmentModel from "../model/appointmentModel.js";
+import doctorModel from "../model/doctorModel.js";
 import userModel from "../model/userModel.js";
 import crypto from 'crypto';
 import { sendWhatsAppConfirmation, sendWhatsAppReminder, sendWhatsAppText } from "../config/whatsappService.js";
@@ -15,6 +16,7 @@ import { cancelAppointment } from "../services/appointmentService.js";
 import {
   HOSPITAL_ADDRESS,
   HOSPITAL_EMAIL,
+  HOSPITAL_EMERGENCY_24_7,
   HOSPITAL_NAME,
   HOSPITAL_PHONE,
   HOSPITAL_WEBSITE,
@@ -53,14 +55,16 @@ const TEXT = {
       `*No Upcoming Appointment Found*\n\nYou don't have any upcoming appointments to cancel.\n\n` +
       `To book a new appointment:\n${optionalLine(HOSPITAL_WEBSITE, "🌐 Visit:")}📞 Call: ${HOSPITAL_PHONE}\n\nReply *HELP* for more options.`,
     cancelError: () => "Sorry, there was an error cancelling your appointment. Please try again later or contact us directly.",
-    book: () =>
+    book: (specialities) =>
       `*Book New Appointment 📅*\n\nTo book an appointment with our doctors:\n\n` +
       `${optionalLine(HOSPITAL_WEBSITE, "🌐 *Website:*")}📞 *Call:* ${HOSPITAL_PHONE}\n💬 *WhatsApp:* ${HOSPITAL_PHONE}\n\n` +
-      `*Our Specialties:*\n• General Medicine\n• Pediatrics\n• Gynecology\n• Dermatology\n• Neurology\n• Gastroenterology\n\nWe're here to help! 🏥`,
+      (specialities.length ? `*Our Specialties:*\n${specialities.map((s) => `• ${s}`).join("\n")}\n\n` : "") +
+      `We're here to help! 🏥`,
     contact: () =>
       `*${HOSPITAL_NAME} Contact Info 🏥*\n\n${optionalLine(HOSPITAL_ADDRESS, "📍 *Address:*")}` +
       `📞 *Phone:* ${HOSPITAL_PHONE}\n💬 *WhatsApp:* ${HOSPITAL_PHONE}\n${optionalLine(HOSPITAL_EMAIL, "📧 *Email:*")}` +
-      `${optionalLine(HOSPITAL_WEBSITE, "🌐 *Website:*")}\nWe're here 24/7 for emergencies! 🚑`,
+      `${optionalLine(HOSPITAL_WEBSITE, "🌐 *Website:*")}` +
+      (HOSPITAL_EMERGENCY_24_7 ? `\nWe're here 24/7 for emergencies! 🚑` : ""),
     help: () =>
       `*Welcome to ${HOSPITAL_NAME}! 🏥*\n\n*Available Commands:*\n• *STATUS* - Check your appointments\n` +
       `• *CANCEL* - Cancel your next appointment\n• *BOOK* - Get booking information\n• *CONTACT* - Hospital contact details\n` +
@@ -86,7 +90,8 @@ const TEXT = {
       `*نئی اپائنٹمنٹ 📅*\n\nاپائنٹمنٹ کے لیے:\n📞 کال کریں: ${HOSPITAL_PHONE}\n💬 واٹس ایپ: ${HOSPITAL_PHONE}${HOSPITAL_WEBSITE ? `\n🌐 ویب سائٹ: ${HOSPITAL_WEBSITE}` : ""}`,
     contact: () =>
       `*${HOSPITAL_NAME} 🏥*\n\n${optionalLine(HOSPITAL_ADDRESS, "📍")}📞 فون: ${HOSPITAL_PHONE}\n` +
-      `💬 واٹس ایپ: ${HOSPITAL_PHONE}\n\nایمرجنسی 24 گھنٹے کھلی ہے 🚑`,
+      `💬 واٹس ایپ: ${HOSPITAL_PHONE}` +
+      (HOSPITAL_EMERGENCY_24_7 ? `\n\nایمرجنسی 24 گھنٹے کھلی ہے 🚑` : ""),
     help: () =>
       `*${HOSPITAL_NAME} 🏥*\n\nیہ الفاظ لکھ کر بھیجیں:\n• *حالت* (STATUS) - اپنی اپائنٹمنٹس دیکھیں\n` +
       `• *منسوخ* (CANCEL) - اگلی اپائنٹمنٹ منسوخ کریں\n• *بکنگ* (BOOK) - اپائنٹمنٹ کی معلومات\n` +
@@ -170,7 +175,14 @@ const buildBotReply = async (phoneNumber, userMessage) => {
       }
 
     case "book":
-      return t.book();
+      try {
+        // Specialities of this hospital's doctors who are taking patients
+        const specialities = await doctorModel.distinct("speciality", { available: true });
+        return t.book(specialities.sort());
+      } catch (error) {
+        console.error("Error loading specialities:", error);
+        return t.book([]);
+      }
     case "contact":
       return t.contact();
     default:
