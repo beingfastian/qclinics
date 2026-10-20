@@ -1,5 +1,5 @@
 import doctorModel from "../model/doctorModel.js";
-import { listAppointments, parseListQuery, LIST_PROJECTION } from "../services/appointmentListService.js";
+import { listAppointments, parseListQuery, LIST_PROJECTION, findLegacy } from "../services/appointmentListService.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import appointmentModel from "../model/appointmentModel.js";
@@ -84,7 +84,8 @@ const appointmentsDoctor = async (req, res) => {
     if (req.query.range || req.query.day) {
       return res.json({ success: true, paged: true, ...(await listAppointments({ ...parseListQuery(req.query), docId, searchDoctorName: false })) });
     }
-    const appointments = await appointmentModel.find({ docId }, LIST_PROJECTION).lean();
+    // Without: the last 90 days and upcoming, at most 2000 (screens still running the previous version)
+    const appointments = await findLegacy({ docId });
 
     if (!appointments) {
       return res.json({ success: false, message: "No appointments found" });

@@ -345,14 +345,41 @@ try {
   check("Patients: search text is matched literally (no regex injection)", data.success && data.patients.length === 0 && data.total === 0);
   data = await get(`/api/admin/all-patients?limit=50&cursor=nonsense&gender=Robot`, adminH);
   check("Patients: bad cursor and filters are ignored safely", data.success && data.total === patientsAll.length);
+  // Old screens (no ?limit): every patient while there are at most 2000; beyond that
+  // the 2000 most recent (still oldest first), so a stale tab can't pull an unbounded list
   data = await get("/api/admin/all-patients", adminH);
-  check("Patients: without ?limit the old full response is kept", data.success && data.patients.length === patientsAll.length && data.total === undefined);
+  check("Patients: without ?limit, all patients while under the cap (old order)", data.success && data.total === undefined &&
+    data.patients.map((p) => String(p._id)).join() === patientsAll.map((p) => String(p._id)).join());
+  const bulk = Array.from({ length: 2000 }, (_, i) => ({ name: `Bulk ${i}`, gender: "Male", createdAt: new Date() }));
+  await userModel.collection.insertMany(bulk);
+  data = await get("/api/admin/all-patients", adminH);
+  const newest = (await userModel.find({}).sort({ _id: -1 }).limit(2000).lean()).reverse().map((p) => String(p._id));
+  check("Patients: without ?limit, at most the 2000 most recent, oldest first", data.patients.length === 2000 && data.patients.map((p) => String(p._id)).join() === newest.join());
+  await userModel.deleteMany({ name: /^Bulk / });
 
-  // --- Old screens (no range): unchanged list, every appointment ---
+  // --- Old screens (no range): the last 90 days and everything upcoming ---
+  // (bounded, so a tab still running the previous version can't pull years of data)
+  const ancientDate = hospitalSlotDate(new Date(), -200);
+  const ancient = { ...docs[0], _id: new mongoose.Types.ObjectId(), docId: String(doctors[2]._id), slotDate: ancientDate, startAt: slotToDate(ancientDate, "10:30 AM") };
+  await appointmentModel.collection.insertOne(ancient);
   data = await get("/api/admin/appointments", adminH);
-  check("Without ?range the old response still lists every appointment", data.success && !data.paged && data.appointments.length === all.length);
+  const ids = (list) => list.map((a) => String(a._id)).sort().join();
+  check("Without ?range: every appointment of the last 90 days and upcoming, nothing older", data.success && !data.paged &&
+    ids(data.appointments) === ids(all) && !data.appointments.some((a) => String(a._id) === String(ancient._id)));
   data = await get("/api/doctor/appointments", docH);
-  check("Doctor's old response still lists all of theirs", data.appointments.length === all.filter((a) => a.docId === String(doctors[2]._id)).length);
+  check("Doctor without ?range: theirs from the last 90 days and upcoming", ids(data.appointments) === ids(all.filter((a) => a.docId === String(doctors[2]._id))));
+  data = await get("/api/admin/appointments?range=past&limit=200", adminH);
+  check("The paged Past tab still reaches older appointments", data.appointments.some((a) => String(a._id) === String(ancient._id)));
+  await appointmentModel.deleteOne({ _id: ancient._id });
+  // A busy hospital: more than 2000 in the window -> the latest 2000 (about 2 MB)
+  const busy = Array.from({ length: 2100 }, (_, i) => ({
+    ...docs[0], _id: new mongoose.Types.ObjectId(), docId: String(doctors[2]._id), startAt: new Date(Date.now() - i * 60000),
+  }));
+  await appointmentModel.collection.insertMany(busy);
+  data = await get("/api/admin/appointments", adminH);
+  const cutoff = [...all.map((a) => a.startAt), ...busy.map((a) => a.startAt)].sort((a, b) => b - a)[1999];
+  check("Without ?range: never more than 2000 rows, the latest ones", data.appointments.length === 2000 && data.appointments.every((a) => new Date(a.startAt) >= cutoff), String(data.appointments.length));
+  await appointmentModel.deleteMany({ _id: { $in: busy.map((a) => a._id) } });
 
   // --- Bad input is ignored, not an error ---
   data = await get("/api/admin/appointments?range=today&cursor=garbage&limit=99999&status=nope&docId=xyz", adminH);

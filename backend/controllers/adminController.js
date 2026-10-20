@@ -1,6 +1,6 @@
 import validator from "validator";
 import { sameSecret } from "../utils/secrets.js";
-import { listAppointments, parseListQuery, LIST_PROJECTION } from "../services/appointmentListService.js";
+import { listAppointments, parseListQuery, findLegacy } from "../services/appointmentListService.js";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import { v2 as cloudinary } from "cloudinary";
@@ -593,9 +593,10 @@ const addPatient = async (req, res) => {
 //   q         name, email or phone (any part, any case), or part of the CNIC
 //   gender    Male | Female | Other
 //   whatsapp  enabled | disabled
-// plus `total` (all matches) and `nextCursor`. Without ?limit: every patient, for
-// screens still running the previous version.
+// plus `total` (all matches) and `nextCursor`. Without ?limit (screens still running
+// the previous version): every patient, up to the 2000 most recent.
 const PATIENT_PAGE_MAX = 200;
+const PATIENT_LEGACY_MAX = 2000;
 const getAllPatients = async (req, res) => {
   try {
     if (req.query.limit) {
@@ -629,7 +630,7 @@ const getAllPatients = async (req, res) => {
         nextCursor: rows.length > limit ? String(patients.at(-1)._id) : null,
       });
     }
-    const patients = await userModel.find({}).select("-password");
+    const patients = (await userModel.find({}).select("-password").sort({ _id: -1 }).limit(PATIENT_LEGACY_MAX).lean()).reverse();
     res.json({ success: true, patients });
   } catch (error) {
     console.error(error);
@@ -910,13 +911,14 @@ const allDoctors = async (req, res) => {
 
 // API to get all Appointments list.
 // With ?range= (or ?day=): one page, filtered in the database (services/appointmentListService.js).
-// Without: every appointment, for staff screens still running the previous version.
+// Without: the last 90 days and everything upcoming (at most 2000), for staff screens
+// still running the previous version (bounded, so it can't grow past Vercel's limit).
 const appointmentsAdmin = async (req, res) => {
   try {
     if (req.query.range || req.query.day) {
       return res.json({ success: true, paged: true, ...(await listAppointments(parseListQuery(req.query))) });
     }
-    const appointments = await appointmentModel.find({}, LIST_PROJECTION).lean();
+    const appointments = await findLegacy();
     res.json({ success: true, appointments });
   } catch (error) {
     console.error(error);

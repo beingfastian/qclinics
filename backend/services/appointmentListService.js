@@ -54,6 +54,15 @@ const dayStart = (offsetDays = 0, now = new Date()) => {
   return new Date(Date.parse(`${iso}T00:00:00Z`) + offsetDays * 86400000 - HOSPITAL_UTC_OFFSET_MINUTES * 60000);
 };
 
+// Requests without ?range come from screens still running the previous version.
+// They get the last 90 days and everything upcoming, at most 2000 rows (latest
+// first; those screens sort for themselves): about 2 MB, under Vercel's 4.5 MB limit.
+export const LEGACY_DAYS = 90;
+export const LEGACY_MAX_ROWS = 2000;
+export const legacyWindow = (now = new Date()) => ({ startAt: { $gte: dayStart(-LEGACY_DAYS, now) } });
+export const findLegacy = (filter = {}) =>
+  appointmentModel.find({ ...filter, ...legacyWindow() }, LIST_PROJECTION).sort({ startAt: -1, _id: -1 }).limit(LEGACY_MAX_ROWS).lean();
+
 const rangeFilter = (range, now) => {
   if (range === "today") return { startAt: { $gte: dayStart(0, now), $lt: dayStart(1, now) } };
   if (range === "upcoming") return { startAt: { $gte: dayStart(1, now) } };
