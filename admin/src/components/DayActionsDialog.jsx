@@ -1,14 +1,15 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { isoToSlotDate, slotDateToIso, toIsoDate } from "../utils/slots";
 
 // Move or cancel all of a doctor's appointments on one day.
 // doctors: list to choose from (admin), or omit and pass doctorName (doctor's own panel).
+// fetchDay(docId, slotDate) -> that day's appointments (loaded from the server)
 // onMove(docId, fromSlotDate, toSlotDate, reason) -> { moved, notMoved } | null
 // onCancelDay(docId, slotDate, reason) -> { cancelled } | null
 const DayActionsDialog = ({
   doctors,
   doctorName,
-  appointments,
+  fetchDay,
   defaultDocId = "",
   defaultSlotDate,
   onMove,
@@ -31,15 +32,28 @@ const DayActionsDialog = ({
   }, [onClose]);
 
   // Active appointments for the chosen doctor and day
-  const onDay = useMemo(() => {
-    const slotDate = fromIso ? isoToSlotDate(fromIso) : "";
-    return appointments.filter(
-      (a) => a.slotDate === slotDate && !a.cancelled && !a.isCompleted && (!doctors || a.docId === docId)
-    );
-  }, [appointments, fromIso, docId, doctors]);
+  const [onDay, setOnDay] = useState([]);
+  const [loadingDay, setLoadingDay] = useState(false);
+  const [dayError, setDayError] = useState("");
+  useEffect(() => {
+    let current = true;
+    setOnDay([]);
+    setDayError("");
+    if (!fromIso || (doctors && !docId)) return;
+    setLoadingDay(true);
+    fetchDay(doctors ? docId : undefined, isoToSlotDate(fromIso))
+      .then((list) => current && setOnDay(list.filter((a) => !a.cancelled && !a.isCompleted)))
+      .catch((error) => current && setDayError(error.message || "Couldn't load this day"))
+      .finally(() => current && setLoadingDay(false));
+    return () => {
+      current = false;
+    };
+    // fetchDay is a new function on every render of the parent; the day and doctor decide
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromIso, docId, doctors]);
 
   const canSubmit =
-    (!doctors || docId) && fromIso && onDay.length > 0 && (action === "cancel" || (toIso && toIso !== fromIso));
+    (!doctors || docId) && fromIso && !loadingDay && onDay.length > 0 && (action === "cancel" || (toIso && toIso !== fromIso));
 
   const submit = async () => {
     setSaving(true);
@@ -127,8 +141,12 @@ const DayActionsDialog = ({
                 onChange={(e) => setFromIso(e.target.value)}
                 className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
               />
-              <p className={`mt-1 ${onDay.length ? "text-gray-700" : "text-gray-400"}`}>
-                {doctors && !docId ? "Choose a doctor" : `${onDay.length} booked appointment(s) on this day`}
+              <p className={`mt-1 ${dayError ? "text-red-600" : onDay.length ? "text-gray-700" : "text-gray-400"}`} role="status">
+                {doctors && !docId
+                  ? "Choose a doctor"
+                  : loadingDay
+                    ? "Checking this day…"
+                    : dayError || `${onDay.length} booked appointment(s) on this day`}
               </p>
             </div>
 

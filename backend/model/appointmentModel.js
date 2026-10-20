@@ -95,6 +95,9 @@ const appointmentSchema = new mongoose.Schema({
 });
 
 appointmentSchema.index({ docId: 1, startAt: 1 });
+// Paged lists (services/appointmentListService.js) sort by startAt then _id
+appointmentSchema.index({ startAt: 1, _id: 1 });
+appointmentSchema.index({ docId: 1, startAt: 1, _id: 1 });
 appointmentSchema.index({ userId: 1, startAt: -1 });
 appointmentSchema.index({ parentAppointmentId: 1 });
 

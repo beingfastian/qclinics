@@ -1,15 +1,14 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaWhatsapp, FaEnvelope, FaSearch, FaExchangeAlt, FaTimes, FaCalendarDay, FaUserSlash, FaPrint, FaSignInAlt, FaListOl, FaCalendarPlus } from "react-icons/fa";
 import { AdminContext } from "../../context/AdminContext.jsx";
 import { AppContext } from "../../context/AppContext.jsx";
 import { printAppointmentSlip } from "../../components/PrintSlip";
-import { appointmentTime, compareSlotDates, hasStarted, hospitalSlotDate } from "../../utils/slots";
+import { hasStarted, hospitalSlotDate } from "../../utils/slots";
+import useAppointmentPages, { fetchDayAppointments } from "../../utils/useAppointmentPages";
 import { AdminRescheduleModal } from "../../components/RescheduleModal";
 import DayActionsDialog from "../../components/DayActionsDialog";
 import { AppointmentStatus, Avatar, Badge, Button, Card, EmptyState, Input, Menu, Segmented, Select, useDialog } from "../../components/ui";
-
-const PAGE_SIZE = 50;
 
 const isOpen = (item) => !item.cancelled && !item.isCompleted && item.status !== "no_show";
 const checkedIn = (item) => item.type === "walk_in" || (item.history || []).some((h) => h.action === "checked_in");
@@ -26,7 +25,7 @@ const TypeBadge = ({ item }) =>
 const AllAppointments = () => {
   const { confirm, alert } = useDialog();
   const navigate = useNavigate();
-  const { aToken, appointments, getAllAppointments, doctors, getAllDoctors, cancelAppointment, rescheduleDay, cancelDay, markNoShow } =
+  const { aToken, backendUrl, appointmentsVersion, doctors, getAllDoctors, cancelAppointment, rescheduleDay, cancelDay, markNoShow } =
     useContext(AdminContext);
   const { calculateAge, slotDateFormat, currency } = useContext(AppContext);
   const [rescheduleFor, setRescheduleFor] = useState(null);
@@ -36,61 +35,30 @@ const AllAppointments = () => {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterNotification, setFilterNotification] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const [shown, setShown] = useState(PAGE_SIZE);
+  const [search, setSearch] = useState(""); // what is sent: the search box, once typing pauses
 
   useEffect(() => {
-    if (aToken) {
-      getAllAppointments();
-      getAllDoctors();
-    }
+    if (aToken) getAllDoctors();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aToken]);
 
-  useEffect(() => setShown(PAGE_SIZE), [range, filterDoctor, filterStatus, filterNotification, searchTerm]);
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
+  // Filtered, sorted and paged by the server (today and upcoming soonest first,
+  // past and all newest first), with the tab counts and the status summary
+  const { items: visible, counts, summary: totals, hasMore, loading, loadMore } = useAppointmentPages({
+    url: `${backendUrl}/api/admin/appointments`,
+    headers: { atoken: aToken },
+    filters: { range, docId: filterDoctor, status: filterStatus, notify: filterNotification, q: search },
+    refreshKey: appointmentsVersion,
+    enabled: Boolean(aToken),
+  });
+  const summary = totals || { total: 0, open: 0, completed: 0, noShow: 0, cancelled: 0 };
   const today = hospitalSlotDate();
-  const inRange = useMemo(() => {
-    const groups = { today: [], upcoming: [], past: [], all: appointments };
-    for (const item of appointments) {
-      const order = compareSlotDates(item.slotDate, today);
-      if (order === 0) groups.today.push(item);
-      else if (order > 0) groups.upcoming.push(item);
-      else groups.past.push(item);
-    }
-    return groups;
-  }, [appointments, today]);
-
-  const filteredAppointments = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    const list = inRange[range].filter((item) => {
-      if (term) {
-        const haystack = [item.userData?.name, item.docData?.name, item.userData?.phone, item.userData?.whatsappNumber].join(" ").toLowerCase();
-        if (!haystack.includes(term)) return false;
-      }
-      if (filterDoctor !== "all" && item.docId !== filterDoctor) return false;
-      if (filterStatus === "cancelled" && !item.cancelled) return false;
-      if (filterStatus === "completed" && !item.isCompleted) return false;
-      if (filterStatus === "no_show" && item.status !== "no_show") return false;
-      if (filterStatus === "pending" && !isOpen(item)) return false;
-      if (filterNotification === "whatsapp" && !item.userData?.whatsappEnabled) return false;
-      if (filterNotification === "email" && item.userData?.whatsappEnabled) return false;
-      return true;
-    });
-    // Today and upcoming: soonest first. Past and all: newest first.
-    const direction = range === "today" || range === "upcoming" ? 1 : -1;
-    return list.sort((a, b) => direction * (appointmentTime(a) - appointmentTime(b)));
-  }, [inRange, range, searchTerm, filterDoctor, filterStatus, filterNotification]);
-
-  const summary = useMemo(() => {
-    const s = { open: 0, completed: 0, noShow: 0, cancelled: 0 };
-    for (const a of filteredAppointments) {
-      if (a.cancelled) s.cancelled++;
-      else if (a.isCompleted) s.completed++;
-      else if (a.status === "no_show") s.noShow++;
-      else s.open++;
-    }
-    return s;
-  }, [filteredAppointments]);
+  const fetchDay = (docId, slotDate) => fetchDayAppointments(`${backendUrl}/api/admin/appointments`, { atoken: aToken }, docId, slotDate);
 
   // The patient's slip again (lost slip, or booked by phone and collected at the counter)
   const printSlip = (item) => {
@@ -157,7 +125,6 @@ const AllAppointments = () => {
 
   const filtersOn = searchTerm || filterDoctor !== "all" || filterStatus !== "all" || filterNotification !== "all";
   const rangeTitle = { today: "today", upcoming: "coming up", past: "in the past", all: "yet" }[range];
-  const visible = filteredAppointments.slice(0, shown);
 
   return (
     <div className="w-full p-4 sm:p-6 max-w-7xl mx-auto">
@@ -183,10 +150,10 @@ const AllAppointments = () => {
           value={range}
           onChange={setRange}
           options={[
-            { value: "today", label: "Today", count: inRange.today.length },
-            { value: "upcoming", label: "Upcoming", count: inRange.upcoming.length },
-            { value: "past", label: "Past", count: inRange.past.length },
-            { value: "all", label: "All", count: appointments.length },
+            { value: "today", label: "Today", count: counts?.today },
+            { value: "upcoming", label: "Upcoming", count: counts?.upcoming },
+            { value: "past", label: "Past", count: counts?.past },
+            { value: "all", label: "All", count: counts?.all },
           ]}
         />
         <div className="flex flex-col gap-3 lg:flex-row">
@@ -225,7 +192,7 @@ const AllAppointments = () => {
           </div>
         </div>
         <p className="text-sm text-slate-600 tabular-nums">
-          {filteredAppointments.length} shown · {summary.open} booked or in queue · {summary.completed} completed · {summary.noShow} no-show ·{" "}
+          {summary.total} shown · {summary.open} booked or in queue · {summary.completed} completed · {summary.noShow} no-show ·{" "}
           {summary.cancelled} cancelled
         </p>
       </Card>
@@ -241,7 +208,9 @@ const AllAppointments = () => {
           <div className="col-span-2 text-right">Actions</div>
         </div>
 
-        {visible.length > 0 ? (
+        {visible.length === 0 && loading ? (
+          <p className="px-5 py-10 text-center text-sm text-slate-500" role="status">Loading appointments…</p>
+        ) : visible.length > 0 ? (
           <ul className="divide-y divide-slate-100">
             {visible.map((item) => (
               <li key={item._id} className="px-5 py-3">
@@ -340,10 +309,10 @@ const AllAppointments = () => {
           />
         )}
 
-        {filteredAppointments.length > shown && (
+        {hasMore && (
           <div className="border-t border-slate-100 p-4 text-center">
-            <Button onClick={() => setShown(shown + PAGE_SIZE)}>
-              Show {Math.min(PAGE_SIZE, filteredAppointments.length - shown)} more ({filteredAppointments.length - shown} left)
+            <Button onClick={loadMore} disabled={loading}>
+              {loading ? "Loading…" : `Show more (${Math.max(0, summary.total - visible.length)} left)`}
             </Button>
           </div>
         )}
@@ -353,7 +322,7 @@ const AllAppointments = () => {
       {showDayActions && (
         <DayActionsDialog
           doctors={doctors}
-          appointments={appointments}
+          fetchDay={fetchDay}
           onMove={rescheduleDay}
           onCancelDay={cancelDay}
           onClose={() => setShowDayActions(false)}

@@ -6,6 +6,7 @@ import crypto from "crypto";
 import { sendOTPEmail } from "../config/nodemailer.js";
 import { labStaffModel } from "../model/labModel.js";
 import { labEnabled } from "./labController.js";
+import { sameSecret } from "../utils/secrets.js";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
@@ -33,7 +34,7 @@ export const login = async (req, res) => {
     }
 
     const adminEmail = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
-    if (adminEmail && email.toLowerCase() === adminEmail && password === process.env.ADMIN_PASSWORD) {
+    if (adminEmail && email.toLowerCase() === adminEmail && sameSecret(password, process.env.ADMIN_PASSWORD)) {
       return res.json({ success: true, role: "admin", token: signToken({ role: "admin" }) });
     }
 
@@ -44,7 +45,7 @@ export const login = async (req, res) => {
       receptionEmail &&
       process.env.RECEPTION_PASSWORD &&
       email.toLowerCase() === receptionEmail &&
-      password === process.env.RECEPTION_PASSWORD
+      sameSecret(password, process.env.RECEPTION_PASSWORD)
     ) {
       return res.json({ success: true, role: "reception", token: signToken({ role: "reception" }) });
     }
@@ -155,31 +156,35 @@ export const verifyOTP = async (req, res) => {
       return res.status(400).json({ success: false, message: "Email and OTP are required" });
     }
 
-    const otpRecord = await otpModel.findOne({ email: otpKey(email) }).sort({ createdAt: -1 });
-    const validUntil = otpRecord?.otpExpiresAt || otpRecord?.expiresAt;
-    if (!otpRecord || otpRecord.usedAt || !validUntil || validUntil < new Date()) {
-      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
-    }
+    const key = otpKey(email);
+    const invalid = () => res.status(400).json({ success: false, message: "Invalid or expired OTP" });
 
-    if (otpRecord.attempts >= MAX_OTP_ATTEMPTS) {
-      return res.status(400).json({ success: false, message: "Too many attempts. Please request a new OTP." });
+    // Each guess takes one attempt in a single atomic step, before the OTP is checked,
+    // so guesses sent at the same moment can't get past the limit
+    const otpRecord = await otpModel.findOneAndUpdate(
+      { email: key, usedAt: null, attempts: { $lt: MAX_OTP_ATTEMPTS } },
+      { $inc: { attempts: 1 } },
+      { sort: { createdAt: -1 }, new: true }
+    );
+    if (!otpRecord) {
+      const latest = await otpModel.findOne({ email: key }).sort({ createdAt: -1 }).lean();
+      if (latest && !latest.usedAt && latest.attempts >= MAX_OTP_ATTEMPTS) {
+        return res.status(400).json({ success: false, message: "Too many attempts. Please request a new OTP." });
+      }
+      return invalid();
     }
+    const validUntil = otpRecord.otpExpiresAt || otpRecord.expiresAt;
+    if (!validUntil || validUntil < new Date()) return invalid();
 
-    const isMatch = await bcrypt.compare(String(otp), otpRecord.otpHash);
-    if (!isMatch) {
-      otpRecord.attempts += 1;
-      await otpRecord.save();
-      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
-    }
+    if (!(await bcrypt.compare(String(otp), otpRecord.otpHash))) return invalid();
 
     const doctor = await findDoctorByEmail(otpRecord.email);
-    if (!doctor) {
-      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
-    }
+    if (!doctor) return invalid();
 
-    // Used: can't be verified again (the record stays for the hourly limit)
-    otpRecord.usedAt = new Date();
-    await otpRecord.save();
+    // Used: can't be verified again (the record stays for the hourly limit). Only one
+    // of two requests with the right OTP at the same moment gets a reset token.
+    const claimed = await otpModel.updateOne({ _id: otpRecord._id, usedAt: null }, { $set: { usedAt: new Date() } });
+    if (!claimed.modifiedCount) return invalid();
 
     const resetToken = jwt.sign(
       { id: String(doctor._id), purpose: "password-reset", pw: passwordFingerprint(doctor) },

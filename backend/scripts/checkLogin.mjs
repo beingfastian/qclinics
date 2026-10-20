@@ -7,6 +7,10 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || "check-login-secret";
 process.env.ADMIN_EMAIL = "admin@hmc.com";
 process.env.ADMIN_PASSWORD = "admin-pass-1";
 process.env.WHATSAPP_PROVIDER = "none";
+// These checks send many sign-in/reset requests from one address on purpose;
+// the limits themselves are checked in checkRateLimit.mjs
+process.env.RATE_LIMIT_AUTH_PER_IP = "1000";
+process.env.RATE_LIMIT_AUTH_PER_ACCOUNT = "1000";
 
 const mongoose = (await import("mongoose")).default;
 const baseUri = process.env.CHECK_MONGODB_URI || "mongodb://127.0.0.1:27017";
@@ -134,6 +138,23 @@ try {
   for (let i = 0; i < 5; i++) await post("verify-otp", { email: "ahmed.raza@hmc.com", otp: "222222" });
   r = await post("verify-otp", { email: "ahmed.raza@hmc.com", otp: "111111" });
   check("Reset: after 5 wrong guesses even the right OTP is refused", !r.success && /Too many/.test(r.message));
+
+  // Guesses sent at the same moment count too (an attacker sends them in parallel)
+  const freshOtp = (otp) =>
+    otpModel.updateOne({ email: "ahmed.raza@hmc.com" }, { otpHash: bcrypt.hashSync(otp, 4), attempts: 0, $unset: { usedAt: 1 } });
+  await freshOtp("333333");
+  const guesses = await Promise.all(
+    Array.from({ length: 30 }, (_, i) => post("verify-otp", { email: "ahmed.raza@hmc.com", otp: String(400000 + i) }))
+  );
+  r = await post("verify-otp", { email: "ahmed.raza@hmc.com", otp: "333333" });
+  check("Reset: 30 parallel wrong guesses use up the 5 attempts", !r.success && /Too many/.test(r.message), JSON.stringify(r));
+  check("Reset: parallel guesses beyond the limit are refused without checking", guesses.filter((g) => /Too many/.test(g.message)).length >= 25);
+  check("Reset: attempts counted exactly", (await records())[0].attempts === 5, String((await records())[0].attempts));
+
+  // The right OTP sent twice at once gives only one reset token
+  await freshOtp("555555");
+  const both = await Promise.all([0, 1].map(() => post("verify-otp", { email: "ahmed.raza@hmc.com", otp: "555555" })));
+  check("Reset: the same OTP sent twice at once gives one reset token", both.filter((b) => b.success).length === 1, JSON.stringify(both));
 } catch (error) {
   console.error("TEST CRASHED:", error);
   failures++;

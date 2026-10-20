@@ -114,6 +114,16 @@ try {
   check("Whole-day reschedule leaves the no-show alone", pastAfter.status === "no_show" && pastAfter.slotDate === today);
   check("Whole-day reschedule still moves the expected appointment", day.moved.some((m) => String(m._id) === String(upcoming._id)), JSON.stringify(day));
 
+  // Whole-day reschedule when the patient's time is already taken on the new day:
+  // they get the nearest free time (later first), not "not moved"
+  const busyDay = hospitalSlotDate(new Date(), 6);
+  const awayDay = hospitalSlotDate(new Date(), 7);
+  await svc.bookAppointment({ patient: urduPatient, doctor, slotDate: busyDay, slotTime: "10:00 AM", amount: 1000, actor: admin });
+  const clash = await svc.bookAppointment({ patient: enPatient, doctor, slotDate: awayDay, slotTime: "10:00 AM", amount: 1000, actor: admin });
+  const shifted = await svc.rescheduleDay({ docId, fromSlotDate: awayDay, toSlotDate: busyDay, actor: admin });
+  const clashMoved = shifted.moved.find((m) => String(m._id) === String(clash._id));
+  check("Whole-day reschedule gives a taken time the nearest later free time", clashMoved?.to === "10:30 AM" && !shifted.notMoved.length, JSON.stringify(shifted));
+
   const moved = await svc.moveAppointment(past._id, tomorrow, "03:00 PM", admin);
   check("Rebooking a no-show sets it back to booked", moved.status === "booked");
 

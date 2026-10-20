@@ -18,13 +18,14 @@ import {
   earningsReport,
 } from "../controllers/doctorController.js";
 import authDoctor from "../middleware/authDoctor.js";
+import { loginLimits } from "../middleware/rateLimit.js";
 import { rescheduleOne, rescheduleWholeDay, cancelWholeDay } from "../controllers/rescheduleController.js";
 
 const doctorRouter = express.Router();
 
 // Public routes
 doctorRouter.get("/list", doctorList);
-doctorRouter.post("/login", loginDoctor);
+doctorRouter.post("/login", loginLimits, loginDoctor);
 
 // Protected routes (require authentication)
 doctorRouter.get("/appointments", authDoctor, appointmentsDoctor);

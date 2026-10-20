@@ -5,7 +5,7 @@ import { DoctorContext } from "../../context/DoctorContext";
 import { AppContext } from "../../context/AppContext";
 import ProfitReport from "../../components/ProfitReport";
 import { useLabCounts, useLabEnabled } from "../../lab/api";
-import { appointmentTime, hospitalSlotDate } from "../../utils/slots";
+import useAppointmentPages from "../../utils/useAppointmentPages";
 import { AppointmentStatus, Avatar, Badge, Button, Card, CardHeader, EmptyState, Skeleton, StatTile } from "../../components/ui";
 
 const REFRESH_MS = 60000;
@@ -14,7 +14,7 @@ const todayText = () => new Date().toLocaleDateString("en-PK", { weekday: "long"
 
 const DoctorDashboard = () => {
   const navigate = useNavigate();
-  const { getDashData, dashData, dToken, appointments, getAppointments } = useContext(DoctorContext);
+  const { getDashData, dashData, dToken, backendUrl, appointmentsVersion } = useContext(DoctorContext);
   const { currency } = useContext(AppContext);
   const labEnabled = useLabEnabled();
   const labCounts = useLabCounts(labEnabled && Boolean(dToken));
@@ -22,7 +22,6 @@ const DoctorDashboard = () => {
   useEffect(() => {
     if (!dToken) return undefined;
     getDashData();
-    getAppointments();
     const timer = setInterval(() => document.visibilityState === "visible" && getDashData({ silent: true }), REFRESH_MS);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -31,13 +30,16 @@ const DoctorDashboard = () => {
   const loading = !dashData;
   const today = dashData?.today;
 
-  // Today's appointments, in time order (cancelled ones left out)
-  const todays = useMemo(() => {
-    const day = hospitalSlotDate();
-    return appointments
-      .filter((a) => a.slotDate === day && !a.cancelled)
-      .sort((a, b) => appointmentTime(a) - appointmentTime(b));
-  }, [appointments]);
+  // Today's appointments, in time order (cancelled ones left out); one page holds a whole day
+  const { items: todayItems } = useAppointmentPages({
+    url: `${backendUrl}/api/doctor/appointments`,
+    headers: { dToken },
+    filters: { range: "today", counts: "0" },
+    refreshKey: appointmentsVersion,
+    enabled: Boolean(dToken),
+    pageSize: 200,
+  });
+  const todays = useMemo(() => todayItems.filter((a) => !a.cancelled), [todayItems]);
 
   const queueHint = !today
     ? undefined
