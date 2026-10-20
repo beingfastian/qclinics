@@ -437,11 +437,12 @@ export const rescheduleDay = async ({ docId, fromSlotDate, toSlotDate, actor, re
       return true;
     } catch (error) {
       if (!(error instanceof AppointmentError)) throw error;
-      failures.set(apt._id.toString(), error.message);
+      failures.set(apt._id.toString(), error);
       return false;
     }
   };
-  const isTaken = (apt) => failures.get(apt._id.toString()) === "Selected time slot is not available";
+  // By code, never by wording: the message shown to staff can change
+  const isTaken = (apt) => failures.get(apt._id.toString())?.code === "slot_taken";
 
   // Pass 1: everyone whose same time is free keeps it
   for (const apt of await activeOnDay(docId, fromSlotDate)) {
@@ -462,12 +463,11 @@ export const rescheduleDay = async ({ docId, fromSlotDate, toSlotDate, actor, re
       }
     }
     if (!done) {
-      const why = failures.get(apt._id.toString());
       notMoved.push({
         _id: apt._id,
         patient: apt.userData?.name,
         time: apt.slotTime,
-        reason: why === "Selected time slot is not available" ? "No free time left on the new day" : why,
+        reason: isTaken(apt) ? "No free time left on the new day" : failures.get(apt._id.toString())?.message,
       });
     }
   }
