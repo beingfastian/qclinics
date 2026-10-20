@@ -587,9 +587,48 @@ const addPatient = async (req, res) => {
 };
 
 
-// API to get all patients
+// API to get all patients.
+// With ?limit=: one page (oldest first, as the screen listed them), filtered in the
+// database with the same rules the Manage Patients screen used in the browser:
+//   q         name, email or phone (any part, any case), or part of the CNIC
+//   gender    Male | Female | Other
+//   whatsapp  enabled | disabled
+// plus `total` (all matches) and `nextCursor`. Without ?limit: every patient, for
+// screens still running the previous version.
+const PATIENT_PAGE_MAX = 200;
 const getAllPatients = async (req, res) => {
   try {
+    if (req.query.limit) {
+      const limit = Math.min(PATIENT_PAGE_MAX, Math.max(1, Number.parseInt(req.query.limit, 10) || 50));
+      const filter = {};
+      const text = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 60) : "";
+      if (text) {
+        const literal = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // typed text, never a pattern
+        const pattern = new RegExp(literal, "i");
+        const exact = new RegExp(literal); // CNIC: as the screen matched it (digits)
+        filter.$or = [{ name: pattern }, { email: pattern }, { phone: pattern }, { cnic: exact }];
+      }
+      if (["Male", "Female", "Other"].includes(req.query.gender)) filter.gender = req.query.gender;
+      if (req.query.whatsapp === "enabled") filter.whatsappEnabled = true;
+      if (req.query.whatsapp === "disabled") filter.whatsappEnabled = false;
+      const after = mongoose.isValidObjectId(req.query.cursor) ? new mongoose.Types.ObjectId(String(req.query.cursor)) : null;
+      const [rows, total] = await Promise.all([
+        userModel
+          .find(after ? { $and: [filter, { _id: { $gt: after } }] } : filter)
+          .select("-password")
+          .sort({ _id: 1 })
+          .limit(limit + 1)
+          .lean(),
+        after ? Promise.resolve(undefined) : userModel.countDocuments(filter),
+      ]);
+      const patients = rows.slice(0, limit);
+      return res.json({
+        success: true,
+        patients,
+        ...(total !== undefined && { total }),
+        nextCursor: rows.length > limit ? String(patients.at(-1)._id) : null,
+      });
+    }
     const patients = await userModel.find({}).select("-password");
     res.json({ success: true, patients });
   } catch (error) {

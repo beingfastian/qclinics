@@ -287,6 +287,67 @@ try {
   }
   await appointmentModel.deleteMany({ _id: { $in: extra.map((e) => e._id) } });
 
+  // --- Patients (Manage Patients): paged, same matching as the screen had ---
+  const { default: userModel } = await import("../model/userModel.js");
+  const first = ["Ayesha", "Rashid", "Fatima", "Usman", "Zainab", "Hamza", "Khan"];
+  await userModel.collection.insertMany(
+    Array.from({ length: 120 }, (_, i) => ({
+      name: `${first[i % 7]} ${["Khan", "Ali", "Noor", "Tariq"][i % 4]} ${i}`,
+      phone: `0300${String(4000000 + i)}`,
+      ...(i % 5 === 0 && { email: `p${i}@Gmail.com` }),
+      ...(i % 3 === 0 && { cnic: `4210${String(100000000 + i)}` }),
+      gender: ["Male", "Female", "Other"][i % 3],
+      ...(i % 7 !== 6 && { whatsappEnabled: i % 2 === 0 }), // some older records have no flag at all
+      password: "hash",
+      createdAt: new Date(),
+    }))
+  );
+  const patientsAll = await userModel.find({}).sort({ _id: 1 }).lean();
+  // admin/src/pages/Admin/ManagePatients.jsx filterPatients(), as it was
+  const oldPatients = ({ q, gender, whatsapp }) =>
+    patientsAll.filter((patient) => {
+      if (q) {
+        const term = q.toLowerCase();
+        if (!(patient.name.toLowerCase().includes(term) || (patient.email || "").toLowerCase().includes(term) ||
+          (patient.phone || "").toLowerCase().includes(term) || (patient.cnic && patient.cnic.includes(q)))) return false;
+      }
+      if (gender && gender !== "all" && patient.gender !== gender) return false;
+      if (whatsapp && whatsapp !== "all" && patient.whatsappEnabled !== (whatsapp === "enabled")) return false;
+      return true;
+    });
+  mismatches = [];
+  let patientCombos = 0;
+  for (const q of [undefined, "khan", "AYESHA", "4000", "4210", "gmail", "zzz"]) {
+    for (const gender of [undefined, "Female"]) {
+      for (const whatsapp of [undefined, "enabled", "disabled"]) {
+        patientCombos++;
+        const params = new URLSearchParams({ limit: "13", ...(q && { q }), ...(gender && { gender }), ...(whatsapp && { whatsapp }) });
+        const got = [];
+        let total = null;
+        let cursor = "";
+        for (let guard = 0; guard < 50; guard++) {
+          const page = await get(`/api/admin/all-patients?${params}${cursor ? `&cursor=${cursor}` : ""}`, adminH);
+          total ??= page.total;
+          got.push(...page.patients);
+          if (!page.nextCursor) break;
+          cursor = page.nextCursor;
+        }
+        const expected = oldPatients({ q, gender, whatsapp });
+        const same = got.map((p) => String(p._id)).join() === expected.map((p) => String(p._id)).join() && total === expected.length;
+        if (!same) mismatches.push(`${params}: got ${got.length}/${total}, expected ${expected.length}`);
+      }
+    }
+  }
+  check(`Patients: all ${patientCombos} search/filter combinations match the old screen (same order)`, mismatches.length === 0, mismatches.slice(0, 3).join(" | "));
+  data = await get("/api/admin/all-patients?limit=500", receptionH);
+  check("Patients: reception can page them too; page size capped at 200; no passwords", data.success && data.patients.length === 120 - 0 && data.patients.length <= 200 && data.patients.every((p) => !p.password), String(data.patients?.length));
+  data = await get(`/api/admin/all-patients?limit=50&q=${encodeURIComponent("(.*)+$")}`, adminH);
+  check("Patients: search text is matched literally (no regex injection)", data.success && data.patients.length === 0 && data.total === 0);
+  data = await get(`/api/admin/all-patients?limit=50&cursor=nonsense&gender=Robot`, adminH);
+  check("Patients: bad cursor and filters are ignored safely", data.success && data.total === patientsAll.length);
+  data = await get("/api/admin/all-patients", adminH);
+  check("Patients: without ?limit the old full response is kept", data.success && data.patients.length === patientsAll.length && data.total === undefined);
+
   // --- Old screens (no range): unchanged list, every appointment ---
   data = await get("/api/admin/appointments", adminH);
   check("Without ?range the old response still lists every appointment", data.success && !data.paged && data.appointments.length === all.length);

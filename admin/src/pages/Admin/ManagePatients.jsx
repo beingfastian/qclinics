@@ -7,74 +7,36 @@ import { AppContext } from "../../context/AppContext.jsx";
 import { FaEdit, FaTrash, FaPlus, FaSearch, FaWhatsapp, FaEnvelope } from "react-icons/fa";
 import { toast } from "react-toastify";
 import axios from "axios";
+import useAppointmentPages from "../../utils/useAppointmentPages";
 
 const ManagePatients = () => {
   const { confirm } = useDialog();
   const { aToken, isOwner, backendUrl } = useContext(AdminContext);
   const { calculateAge } = useContext(AppContext);
-  const [patients, setPatients] = useState([]);
-  const [filteredPatients, setFilteredPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [search, setSearch] = useState(""); // what is sent: the search box, once typing pauses
   const [filterGender, setFilterGender] = useState("all");
   const [filterWhatsApp, setFilterWhatsApp] = useState("all");
   const [editingPatient, setEditingPatient] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [updateLoading, setUpdateLoading] = useState(false);
+  const [version, setVersion] = useState(0); // changes after an edit or delete: reload the list
 
   useEffect(() => {
-    if (aToken) {
-      getAllPatients();
-    }
-  }, [aToken]);
+    const timer = setTimeout(() => setSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-  useEffect(() => {
-    filterPatients();
-  }, [patients, searchTerm, filterGender, filterWhatsApp]);
-
-  const getAllPatients = async () => {
-    try {
-      setLoading(true);
-      const { data } = await axios.get(`${backendUrl}/api/admin/all-patients`, {
-        headers: { aToken }
-      });
-
-      if (data.success) {
-        setPatients(data.patients);
-      } else {
-        toast.error(data.message);
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to fetch patients");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filterPatients = () => {
-    let filtered = patients;
-
-    if (searchTerm) {
-      filtered = filtered.filter(patient => 
-        patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (patient.email || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (patient.phone || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (patient.cnic && patient.cnic.includes(searchTerm))
-      );
-    }
-
-    if (filterGender !== "all") {
-      filtered = filtered.filter(patient => patient.gender === filterGender);
-    }
-
-    if (filterWhatsApp !== "all") {
-      const hasWhatsApp = filterWhatsApp === "enabled";
-      filtered = filtered.filter(patient => patient.whatsappEnabled === hasWhatsApp);
-    }
-
-    setFilteredPatients(filtered);
-  };
+  // Searched, filtered and paged by the server (oldest first, as before)
+  const { items: filteredPatients, total, hasMore, loading, loadMore } = useAppointmentPages({
+    url: `${backendUrl}/api/admin/all-patients`,
+    headers: { aToken },
+    filters: { q: search, gender: filterGender, whatsapp: filterWhatsApp },
+    refreshKey: version,
+    enabled: Boolean(aToken),
+    listKey: "patients",
+  });
+  const getAllPatients = () => setVersion((v) => v + 1);
 
   const handleEditPatient = (patient) => {
     setEditingPatient({
@@ -154,7 +116,8 @@ const ManagePatients = () => {
     }
   };
 
-  if (loading) {
+  // Skeleton only before the first page arrives (not while searching)
+  if (loading && total === null) {
     return (
       <div className="w-full p-4 sm:p-6 max-w-7xl mx-auto">
         <div className="animate-pulse space-y-6">
@@ -219,7 +182,7 @@ const ManagePatients = () => {
               <option value="disabled">Email Only</option>
             </select>
             <div className="text-sm text-gray-600 flex items-center justify-end">
-              Total: {filteredPatients.length} patients
+              Total: {total ?? 0} patients
             </div>
           </div>
         </div>
@@ -363,7 +326,20 @@ const ManagePatients = () => {
             ))}
           </div>
 
-          {filteredPatients.length === 0 && (
+          {hasMore && (
+            <div className="border-t border-gray-100 p-4 text-center">
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loading}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {loading ? "Loading…" : `Show more (${Math.max(0, (total ?? 0) - filteredPatients.length)} left)`}
+              </button>
+            </div>
+          )}
+
+          {filteredPatients.length === 0 && !loading && (
             <div className="p-12 text-center">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <FaSearch className="text-gray-400 text-xl" />

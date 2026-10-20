@@ -2,22 +2,24 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
 
-// One appointment list, filtered and paged by the server
-// (backend/services/appointmentListService.js). The screens used to load every
+// One list, filtered and paged by the server: appointments
+// (backend/services/appointmentListService.js) or patients (listKey "patients"). The screens used to load every
 // appointment ever made and filter here; that stops working as a hospital grows.
 //
 //   url         /api/admin/appointments or /api/doctor/appointments
 //   headers     the login header, e.g. { atoken } or { dToken }
 //   filters     { range, docId, status, notify, q }: empty values are left out
 //   refreshKey  changes after an action (cancel, reschedule...): reloads what's shown
+//   listKey     the list's name in the response ("appointments" or "patients")
 //
-// Returns { items, counts, summary, hasMore, loading, loadMore }.
+// Returns { items, counts, summary, total, hasMore, loading, loadMore }.
 // A slower, older response never replaces a newer one (filters changed meanwhile).
 const PAGE_SIZE = 50;
 const MAX_RELOAD = 200; // the server's largest page
 
-const useAppointmentPages = ({ url, headers, filters, refreshKey = 0, enabled = true, pageSize = PAGE_SIZE }) => {
+const useAppointmentPages = ({ url, headers, filters, refreshKey = 0, enabled = true, pageSize = PAGE_SIZE, listKey = "appointments" }) => {
   const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(null);
   const [counts, setCounts] = useState(null);
   const [summary, setSummary] = useState(null);
   const [nextCursor, setNextCursor] = useState(null);
@@ -48,11 +50,13 @@ const useAppointmentPages = ({ url, headers, filters, refreshKey = 0, enabled = 
           toast.error(data.message);
           return;
         }
-        setItems((previous) => (cursor ? [...previous, ...data.appointments] : data.appointments));
+        const rows = data[listKey] || [];
+        setItems((previous) => (cursor ? [...previous, ...rows] : rows));
         setNextCursor(data.nextCursor || null);
         if (!cursor) {
           setCounts(data.counts || null);
           setSummary(data.summary || null);
+          setTotal(data.total ?? data.summary?.total ?? null);
         }
       } catch (error) {
         if (request === latest.current) toast.error(error.response?.data?.message || error.message);
@@ -60,7 +64,7 @@ const useAppointmentPages = ({ url, headers, filters, refreshKey = 0, enabled = 
         if (request === latest.current) setLoading(false);
       }
     },
-    [url, headersKey, paramsKey, pageSize]
+    [url, headersKey, paramsKey, pageSize, listKey]
   );
 
   // New filters: start again from the first page
@@ -83,7 +87,7 @@ const useAppointmentPages = ({ url, headers, filters, refreshKey = 0, enabled = 
     if (nextCursor && !loading) load({ cursor: nextCursor });
   }, [nextCursor, loading, load]);
 
-  return { items, counts, summary, hasMore: Boolean(nextCursor), loading, loadMore };
+  return { items, counts, summary, total, hasMore: Boolean(nextCursor), loading, loadMore };
 };
 
 export default useAppointmentPages;
