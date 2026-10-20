@@ -2,6 +2,7 @@ import express from "express";
 import authRoles from "../middleware/authRoles.js";
 import authAdmin from "../middleware/authAdmin.js";
 import reportUpload from "../middleware/reportUpload.js";
+import { loginLimits } from "../middleware/rateLimit.js";
 import * as c from "../controllers/labController.js";
 
 const labRouter = express.Router();
@@ -11,7 +12,7 @@ labRouter.get("/status", c.status);
 labRouter.get("/files/:token", c.requireLabEnabled, c.reportFile); // short-lived signed link
 
 labRouter.use(c.requireLabEnabled);
-labRouter.post("/login", c.login);
+labRouter.post("/login", loginLimits, c.login);
 labRouter.get("/me", authRoles("lab"), c.me);
 
 // Lab staff accounts: admin only

@@ -7,6 +7,10 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || "check-login-secret";
 process.env.ADMIN_EMAIL = "admin@hmc.com";
 process.env.ADMIN_PASSWORD = "admin-pass-1";
 process.env.WHATSAPP_PROVIDER = "none";
+// These checks send many sign-in/reset requests from one address on purpose;
+// the limits themselves are checked in checkRateLimit.mjs
+process.env.RATE_LIMIT_AUTH_PER_IP = "1000";
+process.env.RATE_LIMIT_AUTH_PER_ACCOUNT = "1000";
 
 const mongoose = (await import("mongoose")).default;
 const baseUri = process.env.CHECK_MONGODB_URI || "mongodb://127.0.0.1:27017";

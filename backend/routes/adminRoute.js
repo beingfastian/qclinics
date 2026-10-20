@@ -26,6 +26,7 @@ import {
 import upload from "../middleware/multer.js";
 import authAdmin from "../middleware/authAdmin.js";
 import authDesk from "../middleware/authDesk.js";
+import { loginLimits } from "../middleware/rateLimit.js";
 import { changeAvailabilities } from "../controllers/doctorController.js";
 import { rescheduleOne, rescheduleWholeDay, cancelWholeDay } from "../controllers/rescheduleController.js";
 
@@ -35,7 +36,7 @@ const adminRouter = express.Router();
 // authAdmin: the owner only (doctors, shares and fees, leave decisions, profit, settings).
 
 // Authentication (public route)
-adminRouter.post("/login", loginAdmin);
+adminRouter.post("/login", loginLimits, loginAdmin);
 
 // Doctor Management Routes
 adminRouter.post("/add-doctor", authAdmin, upload.single("image"), addDoctor);
