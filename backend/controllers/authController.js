@@ -6,6 +6,7 @@ import crypto from "crypto";
 import { sendOTPEmail } from "../config/nodemailer.js";
 import { labStaffModel } from "../model/labModel.js";
 import { labEnabled } from "./labController.js";
+import { sameSecret } from "../utils/secrets.js";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
@@ -33,7 +34,7 @@ export const login = async (req, res) => {
     }
 
     const adminEmail = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
-    if (adminEmail && email.toLowerCase() === adminEmail && password === process.env.ADMIN_PASSWORD) {
+    if (adminEmail && email.toLowerCase() === adminEmail && sameSecret(password, process.env.ADMIN_PASSWORD)) {
       return res.json({ success: true, role: "admin", token: signToken({ role: "admin" }) });
     }
 
@@ -44,7 +45,7 @@ export const login = async (req, res) => {
       receptionEmail &&
       process.env.RECEPTION_PASSWORD &&
       email.toLowerCase() === receptionEmail &&
-      password === process.env.RECEPTION_PASSWORD
+      sameSecret(password, process.env.RECEPTION_PASSWORD)
     ) {
       return res.json({ success: true, role: "reception", token: signToken({ role: "reception" }) });
     }

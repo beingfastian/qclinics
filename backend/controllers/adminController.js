@@ -1,4 +1,5 @@
 import validator from "validator";
+import { sameSecret } from "../utils/secrets.js";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import { v2 as cloudinary } from "cloudinary";
@@ -829,7 +830,7 @@ const loginAdmin = async (req, res) => {
     const { email, password } = req.body;
     if (
       email === process.env.ADMIN_EMAIL &&
-      password === process.env.ADMIN_PASSWORD
+      sameSecret(password, process.env.ADMIN_PASSWORD)
     ) {
       const token = jwt.sign(
         { role: "admin" },
