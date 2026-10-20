@@ -252,6 +252,41 @@ try {
   data = await get(`/api/doctor/appointments?range=all&docId=${doctors[0]._id}&limit=200`, docH);
   check("A doctor can't page another doctor's appointments", data.appointments.every((a) => a.docId === String(doctors[2]._id)) && data.counts.all === all.filter((a) => a.docId === String(doctors[2]._id)).length);
 
+  // --- Doctor dashboard numbers: computed in the database, same as the old loop ---
+  // Extra completed visits: with and without a saved split, and amounts that hit .5
+  // (JavaScript rounds .5 up; MongoDB's $round would round to even)
+  const extra = [1015, 999.5, 2005, 1500, 333.5].map((amount, i) => ({
+    ...docs[0], _id: new mongoose.Types.ObjectId(), docId: String(doctors[2]._id), userId: `extra-${i % 3}`,
+    amount, status: "completed", isCompleted: true, cancelled: false,
+    ...(i % 2 === 0 && { share: { percent: 20, hospital: Math.round(amount * 0.2), doctor: amount - Math.round(amount * 0.2) } }),
+  }));
+  await appointmentModel.collection.insertMany(extra);
+  const { visitSplit } = await import("../services/profitService.js");
+  const oldDashboard = (list, percent) => {
+    let earnings = 0;
+    let fees = 0;
+    for (const item of list) {
+      if (!item.isCompleted) continue;
+      const split = visitSplit(item, percent);
+      earnings += split.doctor;
+      fees += split.hospital + split.doctor;
+    }
+    return {
+      earnings, fees, appointments: list.length, patients: new Set(list.map((a) => a.userId)).size,
+      noShow: list.filter((a) => a.status === "no_show").length,
+      // The old unsorted find({ docId }) returned docId+startAt index order, reversed: latest time first
+      latest: [...list].sort((a, b) => b.startAt - a.startAt || String(b._id).localeCompare(String(a._id))).slice(0, 5).map((a) => String(a._id)),
+    };
+  };
+  for (const doctor of doctors) {
+    const mine = await appointmentModel.find({ docId: String(doctor._id) }).lean();
+    const expected = oldDashboard(mine, doctor.hospitalSharePercent);
+    const dash = (await get("/api/doctor/dashboard", { dtoken: jwt.sign({ id: String(doctor._id), role: "doctor" }, process.env.JWT_SECRET) })).dashData;
+    const got = { earnings: dash.earnings, fees: dash.fees, appointments: dash.appointments, patients: dash.patients, noShow: dash.noShow, latest: dash.latestAppointments.map((a) => String(a._id)) };
+    check(`Doctor dashboard numbers unchanged (${doctor.name})`, JSON.stringify(got) === JSON.stringify(expected), `${JSON.stringify(got)} vs ${JSON.stringify(expected)}`);
+  }
+  await appointmentModel.deleteMany({ _id: { $in: extra.map((e) => e._id) } });
+
   // --- Old screens (no range): unchanged list, every appointment ---
   data = await get("/api/admin/appointments", adminH);
   check("Without ?range the old response still lists every appointment", data.success && !data.paged && data.appointments.length === all.length);

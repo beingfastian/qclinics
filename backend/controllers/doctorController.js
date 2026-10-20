@@ -3,7 +3,7 @@ import { listAppointments, parseListQuery, LIST_PROJECTION } from "../services/a
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import appointmentModel from "../model/appointmentModel.js";
-import { profitReport, ProfitError, visitSplit } from "../services/profitService.js";
+import { profitReport, ProfitError } from "../services/profitService.js";
 import leaveRequestModel from "../model/leaveRequestModel.js";
 import { createNotification } from "./notificationController.js";
 import { formatSlotDate } from "../utils/slots.js";
@@ -198,41 +198,57 @@ const scheduleFollowUp = async (req, res) => {
 };
 
 
-// API to get dashboard data for doctor panel
+// API to get dashboard data for doctor panel.
+// The totals are worked out in the database (one aggregation) instead of loading
+// every appointment the doctor ever had; the numbers are the same as before
+// (checked against the old loop in scripts/checkLists.mjs).
 const doctorDashboard = async (req, res) => {
   try {
     const { docId } = req.body;
-    const appointments = await appointmentModel.find({ docId });
     const me = await doctorModel.findById(docId).select("hospitalSharePercent").lean();
+    const percent = Math.min(100, Math.max(0, Number(me?.hospitalSharePercent ?? 0) || 0));
 
     // The doctor's own earnings: their part of each completed visit's fee (after the
-    // hospital's share). Fees = what patients paid in total.
-    let earnings = 0;
-    let fees = 0;
-    for (const item of appointments) {
-      if (!item.isCompleted) continue;
-      const split = visitSplit(item, me?.hospitalSharePercent);
-      earnings += split.doctor;
-      fees += split.hospital + split.doctor;
-    }
-
-    let patients = [];
-
-    appointments.map((item) => {
-      if (!patients.includes(item.userId)) {
-        patients.push(item.userId);
-      }
-    });
+    // hospital's share). Fees = what patients paid in total. A visit uses the split
+    // saved when it was completed, or (older visits) the doctor's current share,
+    // exactly as services/profitService.js visitSplit/splitFee do.
+    // Math.round, not $round: MongoDB rounds .5 to even, JavaScript rounds it up.
+    const round = (value) => ({ $floor: { $add: [value, 0.5] } });
+    const fee = { $max: [0, round({ $ifNull: ["$amount", 0] })] };
+    const hospitalPart = round({ $divide: [{ $multiply: [fee, percent] }, 100] });
+    const saved = { $and: [{ $isNumber: "$share.hospital" }, { $isNumber: "$share.doctor" }] };
+    const completed = { $eq: ["$isCompleted", true] };
+    const [totals = {}] = await appointmentModel.aggregate([
+      { $match: { docId } },
+      {
+        $group: {
+          _id: null,
+          appointments: { $sum: 1 },
+          patients: { $addToSet: "$userId" },
+          noShow: { $sum: { $cond: [{ $eq: ["$status", "no_show"] }, 1, 0] } },
+          earnings: {
+            $sum: { $cond: [completed, { $cond: [saved, "$share.doctor", { $subtract: [fee, hospitalPart] }] }, 0] },
+          },
+          fees: {
+            $sum: { $cond: [completed, { $cond: [saved, { $add: ["$share.hospital", "$share.doctor"] }, fee] }, 0] },
+          },
+        },
+      },
+    ]);
+    // The 5 latest by appointment time. The old unsorted find({ docId }) came back in
+    // the order of the docId+startAt index, so "reversed, first 5" meant exactly this;
+    // now it is explicit (ties by _id) instead of depending on the index chosen.
+    const latestAppointments = await appointmentModel.find({ docId }, LIST_PROJECTION).sort({ startAt: -1, _id: -1 }).limit(5).lean();
 
     const dashData = {
-      earnings,
-      fees,
+      earnings: totals.earnings ?? 0,
+      fees: totals.fees ?? 0,
       hospitalSharePercent: me?.hospitalSharePercent ?? 0,
-      appointments: appointments.length,
-      patients: patients.length,
+      appointments: totals.appointments ?? 0,
+      patients: totals.patients?.length ?? 0,
       // Additive: how many patients never came (for the no-show pitch number)
-      noShow: appointments.filter((item) => item.status === "no_show").length,
-      latestAppointments: appointments.reverse().slice(0, 5),
+      noShow: totals.noShow ?? 0,
+      latestAppointments,
       // Additive: today's numbers for this doctor (to see, seen, queue)
       today: (await todaySummary({ docId })).doctors[0] || null,
     };
