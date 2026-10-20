@@ -17,6 +17,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import queueRouter from "./routes/queueRoute.js";
 import labRouter from "./routes/labRoute.js";
+import billingRouter from "./routes/billingRoute.js";
 import { testEmailConnection } from "./config/emailService.js";
 import { runReminderCheck } from "./jobs/reminders.js";
 
@@ -67,6 +68,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/queue", queueRouter);
 app.use("/api/lab", labRouter);
+app.use("/api/billing", billingRouter);
 
 // Reminder check for hosts without a background timer (Vercel cron). Vercel sends
 // "Authorization: Bearer <CRON_SECRET>"; nothing runs without a matching secret.

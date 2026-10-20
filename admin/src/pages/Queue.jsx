@@ -32,6 +32,8 @@ import { openPrintWindow, printTokenSlip } from "../components/PrintSlip";
 import LabOrderModal from "../components/LabOrderModal";
 import FollowUpModal from "../components/FollowUpModal";
 import { useLabEnabled } from "../lab/api";
+import { useBillingEnabled } from "../billing/api";
+import { CollectDialog } from "../components/billing/BillingDialogs";
 
 // Live OPD queue.
 //   Reception (admin login): chooses the doctor, finds or registers the patient and
@@ -244,7 +246,11 @@ const Queue = () => {
   const [showFinished, setShowFinished] = useState(false);
   const [labFor, setLabFor] = useState(null);
   const [followUpFor, setFollowUpFor] = useState(null);
+  // Billing: after a token is issued, reception collects the fee (token + receipt print together)
+  const [collectFor, setCollectFor] = useState(null);
   const labEnabled = useLabEnabled();
+  const billingEnabled = useBillingEnabled();
+  const collectAtDesk = isAdmin && billingEnabled;
 
   useEffect(() => {
     if (isAdmin) getAllDoctors();
@@ -333,9 +339,16 @@ const Queue = () => {
 
   // Issue a token. The print window opens now (inside the click) and is filled
   // after the server answers, so the browser doesn't block it as a popup.
+  const printWithEstimate = async (token, win, receipt) => {
+    const { data: fresh } = await axios.get(`${backendUrl}/api/queue`, { headers, params: isAdmin ? { docId } : {} }).catch(() => ({ data: null }));
+    const latest = fresh?.queue?.tokens?.find((t) => t._id === token._id);
+    printTokenSlip({ ...slipDetails(token, latest?.estimate), ...(receipt && { receipt }) }, win);
+  };
+
   const issue = async (body, key) => {
     const forDoctor = doctorName;
-    const win = autoPrint ? openPrintWindow() : null;
+    // With billing, the slip prints after the fee is collected (or "Collect later")
+    const win = autoPrint && !collectAtDesk ? openPrintWindow() : null;
     const data = await post("issue", body, key);
     if (!data) {
       win?.close();
@@ -345,11 +358,8 @@ const Queue = () => {
       data.existing ? `Already checked in: token ${data.token.number} for Dr. ${forDoctor}` : `Token ${data.token.number} for Dr. ${forDoctor}`,
       TOAST
     );
-    if (win) {
-      const { data: fresh } = await axios.get(`${backendUrl}/api/queue`, { headers, params: isAdmin ? { docId } : {} }).catch(() => ({ data: null }));
-      const latest = fresh?.queue?.tokens?.find((t) => t._id === data.token._id);
-      printTokenSlip(slipDetails(data.token, latest?.estimate), win);
-    }
+    if (win) await printWithEstimate(data.token, win);
+    if (collectAtDesk && data.token.appointmentId) setCollectFor(data.token);
     return data;
   };
 
@@ -654,6 +664,30 @@ const Queue = () => {
     <>
       {labFor && <LabOrderModal source={{ queueTokenId: labFor._id }} patientName={labFor.patientName} doctorName={doctorName} onClose={() => setLabFor(null)} />}
       {followUpFor && <FollowUpModal appointment={followUpFor} onClose={() => setFollowUpFor(null)} />}
+      {collectFor && (
+        <CollectDialog
+          target={{ appointmentId: collectFor.appointmentId }}
+          doctors={doctors}
+          print={autoPrint}
+          laterLabel={autoPrint ? "Collect later & print token" : "Collect later"}
+          onPaid={(payment, win) => {
+            const token = collectFor;
+            setCollectFor(null);
+            toast.success(`Receipt ${payment.receiptNo} saved`, TOAST);
+            if (win) printWithEstimate(token, win, payment);
+          }}
+          onLater={(win) => {
+            const token = collectFor;
+            setCollectFor(null);
+            toast.info("Fee not collected yet. It's on the Billing page under “To collect”.", TOAST);
+            if (win) printWithEstimate(token, win);
+          }}
+          onClose={() => {
+            setCollectFor(null);
+            toast.info("Fee not collected yet. It's on the Billing page under “To collect”.", TOAST);
+          }}
+        />
+      )}
     </>
   );
 

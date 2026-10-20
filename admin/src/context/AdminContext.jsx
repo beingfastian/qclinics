@@ -2,6 +2,7 @@ import { createContext, useState } from "react";
 import axios from "axios";
 export const AdminContext = createContext();
 import { toast } from "react-toastify";
+import { isOwnerToken } from "../billing/api";
 
 const AdminContextProvider = (props) => {
   const [aToken, setAToken] = useState(
@@ -284,6 +285,8 @@ const getLeaveStats = async () => {
   const value = {
     aToken,
     setAToken,
+    // The owner (admin login), not the shared reception login
+    isOwner: isOwnerToken(aToken),
     backendUrl,
     
     // Doctor CRUD

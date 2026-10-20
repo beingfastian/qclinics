@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { FaSearch, FaSyncAlt, FaFlask, FaExclamationTriangle, FaWifi } from "react-icons/fa";
 import { labGet, currentRole, STATUS, when, ageFrom } from "../../lab/api";
+import { useBillingEnabled } from "../../billing/api";
+import { PaidBadge } from "../../components/billing/PaidBadge";
 
 // The list of lab requests, for all three logins:
 //   lab    – work to do (new and returned first, urgent on top), plus history
@@ -56,6 +58,7 @@ const chime = (ref) => {
 
 const LabOrders = () => {
   const role = currentRole() || "lab";
+  const billingEnabled = useBillingEnabled();
   const tabs = TABS[role];
   const [tab, setTab] = useState(tabs[0].key);
   const [search, setSearch] = useState("");
@@ -217,6 +220,7 @@ const LabOrders = () => {
                         </span>
                       )}
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.className}`}>{status.label}</span>
+                      {billingEnabled && role !== "doctor" && <PaidBadge order={o} />}
                     </div>
                   </div>
                 </Link>

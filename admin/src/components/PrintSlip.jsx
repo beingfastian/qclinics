@@ -132,7 +132,47 @@ export const printLabRequestSlip = (details, win = openPrintWindow()) => {
   return true;
 };
 
-// details: { number, patientName, doctorName, dateText, issuedTime, ahead, waitMinutes, urgent, trackUrl }
+// The receipt part of a slip. receipt: a payment from the billing API
+// ({ receiptNo, items, gross, discount, discountAllowedBy, net, method, reference,
+//    collectedBy, collectedAt, patient, labOrderNumber })
+const METHOD_TEXT = { cash: "Cash", bank_transfer: "Bank transfer" };
+const receiptHtml = (receipt) => `
+  <hr>
+  <div class="type">Receipt / <span class="ur">رسید</span></div>
+  ${row("Receipt no.", receipt.receiptNo)}
+  ${receipt.labOrderNumber ? row("Lab request", `L-${receipt.labOrderNumber}`) : ""}
+  ${(receipt.items || []).map((i) => row(i.label, `Rs. ${i.amount}`)).join("")}
+  ${
+    receipt.discount > 0
+      ? `${row("Discount", `- Rs. ${receipt.discount}`)}${
+          receipt.discountAllowedBy?.name ? `<div class="foot" style="margin-top:0;text-align:right">allowed by Dr. ${escapeHtml(receipt.discountAllowedBy.name)}</div>` : ""
+        }`
+      : ""
+  }
+  <div class="row" style="font-size:14px"><span class="k">Paid / <span class="ur">ادا شدہ</span></span><span class="v">Rs. ${escapeHtml(receipt.net)}</span></div>
+  ${row("Method", `${METHOD_TEXT[receipt.method] || receipt.method}${receipt.reference ? ` (${receipt.reference})` : ""}`)}
+  ${row("Received by", receipt.collectedBy?.name || "")}
+  ${row("Time", new Date(receipt.collectedAt).toLocaleString("en-PK", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }))}`;
+
+// A receipt on its own (lab charges, or printing one again)
+export const printReceiptSlip = (receipt, win = openPrintWindow()) => {
+  if (!win || win.closed) return false;
+  writeAndPrint(
+    win,
+    `Receipt ${receipt.receiptNo}`,
+    `${header()}
+  ${row("Patient", receipt.patient?.name || "")}
+  ${receipt.doctorName ? row("Doctor", `Dr. ${receipt.doctorName}`) : ""}
+  ${receiptHtml(receipt)}
+  <hr>
+  <div class="foot">Thank you. Please keep this receipt.</div>
+  <div class="foot ur">شکریہ۔ یہ رسید سنبھال کر رکھیں۔</div>`
+  ).catch(() => win.close());
+  return true;
+};
+
+// details: { number, patientName, doctorName, dateText, issuedTime, ahead, waitMinutes, urgent, trackUrl, receipt? }
+// receipt (optional): the payment, printed under the token on the same slip
 // win: a window from openPrintWindow() opened earlier in the click (e.g. before
 // an API call), so the browser doesn't block it
 export const printTokenSlip = (details, win = openPrintWindow()) => {
@@ -162,6 +202,7 @@ export const printTokenSlip = (details, win = openPrintWindow()) => {
   ${row("Date", details.dateText)}
   ${row("Issued", details.issuedTime)}
   ${wait ? row("Wait", wait) : ""}
+  ${details.receipt ? receiptHtml(details.receipt) : ""}
   <hr>
   <div class="foot">Wait for your number to be called.<br>If you step out, come back before your turn.</div>
   <div class="foot ur">اپنا نمبر پکارے جانے کا انتظار کریں۔ باہر جائیں تو اپنی باری سے پہلے واپس آ جائیں۔</div>

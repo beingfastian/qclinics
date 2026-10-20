@@ -33,7 +33,11 @@ export const queueDoctor = (req, res, next) => {
     return res.json({ success: false, message: "Please select a doctor" });
   }
   req.queueDocId = String(docId);
-  req.actor = req.recipientType === "doctor" ? { role: "doctor", id: req.recipient } : { role: "admin" };
+  // Reception is recorded as the admin role (what visit and token history accept), tagged "reception"
+  req.actor =
+    req.recipientType === "doctor"
+      ? { role: "doctor", id: req.recipient }
+      : { role: "admin", ...(req.isReception && { id: "reception" }) };
   next();
 };
 

@@ -88,6 +88,11 @@ const labOrderSchema = new mongoose.Schema({
     at: Date,
     note: String, // doctor's note when returning a report
   },
+  // Set when reception collects the lab charges (services/billingService.js); unset if refunded in full
+  payment: {
+    type: new mongoose.Schema({ receiptNo: String, net: Number, paidAt: Date }, { _id: false }),
+    default: undefined,
+  },
 
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },

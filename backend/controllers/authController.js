@@ -37,6 +37,18 @@ export const login = async (req, res) => {
       return res.json({ success: true, role: "admin", token: signToken({ role: "admin" }) });
     }
 
+    // Shared reception login (optional): the front desk works like the admin login,
+    // without the owner's pages (profit, doctor shares, refunds, settings)
+    const receptionEmail = String(process.env.RECEPTION_EMAIL || "").trim().toLowerCase();
+    if (
+      receptionEmail &&
+      process.env.RECEPTION_PASSWORD &&
+      email.toLowerCase() === receptionEmail &&
+      password === process.env.RECEPTION_PASSWORD
+    ) {
+      return res.json({ success: true, role: "reception", token: signToken({ role: "reception" }) });
+    }
+
     const doctor =
       (await doctorModel.findOne({ email })) ||
       (await doctorModel.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: "i" } }));

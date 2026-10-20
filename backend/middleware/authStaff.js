@@ -12,9 +12,11 @@ const authStaff = async (req, res, next) => {
       return res.status(401).json({ success: false, message: "Unauthorized Access denied" });
     }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (decoded.role === "admin") {
+    if (decoded.role === "admin" || decoded.role === "reception") {
+      // Reception runs the queue like the admin login and shares its notification inbox
       req.recipient = "admin";
       req.recipientType = "admin";
+      if (decoded.role === "reception") req.isReception = true;
     } else if (decoded.role === "doctor" && decoded.id) {
       req.recipient = decoded.id;
       req.recipientType = "doctor";

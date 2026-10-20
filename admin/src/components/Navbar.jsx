@@ -51,7 +51,7 @@ const whenText = (value) => {
 };
 
 const Navbar = ({ onMenuClick }) => {
-  const { aToken, setAToken } = useContext(AdminContext);
+  const { isOwner, aToken, setAToken } = useContext(AdminContext);
   const { dToken, setDToken, doctorData } = useContext(DoctorContext);
   const { lToken, setLToken, labName } = useContext(LabContext);
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
@@ -61,8 +61,8 @@ const Navbar = ({ onMenuClick }) => {
   const panel = useRef(null);
 
   const role = aToken ? "admin" : dToken ? "doctor" : "lab";
-  const roleLabel = { admin: "Reception / Admin", doctor: "Doctor", lab: "Lab" }[role];
-  const userName = aToken ? "Administrator" : dToken ? (doctorData?.name ? `Dr. ${doctorData.name}` : "Doctor") : labName || "Lab staff";
+  const roleLabel = { admin: isOwner ? "Reception / Admin" : "Reception", doctor: "Doctor", lab: "Lab" }[role];
+  const userName = aToken ? (isOwner ? "Administrator" : "Reception") : dToken ? (doctorData?.name ? `Dr. ${doctorData.name}` : "Doctor") : labName || "Lab staff";
 
   // Close the notification panel on outside click or Escape
   useEffect(() => {
