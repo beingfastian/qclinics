@@ -1,5 +1,6 @@
 import validator from "validator";
 import { sameSecret } from "../utils/secrets.js";
+import { listAppointments, parseListQuery, LIST_PROJECTION } from "../services/appointmentListService.js";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import { v2 as cloudinary } from "cloudinary";
@@ -868,10 +869,15 @@ const allDoctors = async (req, res) => {
   }
 };
 
-// API to get all Appointments list
+// API to get all Appointments list.
+// With ?range= (or ?day=): one page, filtered in the database (services/appointmentListService.js).
+// Without: every appointment, for staff screens still running the previous version.
 const appointmentsAdmin = async (req, res) => {
   try {
-    const appointments = await appointmentModel.find({});
+    if (req.query.range || req.query.day) {
+      return res.json({ success: true, paged: true, ...(await listAppointments(parseListQuery(req.query))) });
+    }
+    const appointments = await appointmentModel.find({}, LIST_PROJECTION).lean();
     res.json({ success: true, appointments });
   } catch (error) {
     console.error(error);
