@@ -36,7 +36,8 @@ const Login = () => {
       }
       // One role at a time: drop any older session first
       ["aToken", "dToken", "lToken"].forEach((key) => localStorage.removeItem(key));
-      if (data.role === "admin") {
+      // Reception uses the admin app (same token header) without the owner's pages
+      if (data.role === "admin" || data.role === "reception") {
         localStorage.setItem("aToken", data.token);
         setAToken(data.token);
         navigate("/");

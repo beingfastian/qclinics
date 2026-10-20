@@ -10,7 +10,7 @@ import axios from "axios";
 
 const ManagePatients = () => {
   const { confirm } = useDialog();
-  const { aToken, backendUrl } = useContext(AdminContext);
+  const { aToken, isOwner, backendUrl } = useContext(AdminContext);
   const { calculateAge } = useContext(AppContext);
   const [patients, setPatients] = useState([]);
   const [filteredPatients, setFilteredPatients] = useState([]);
@@ -285,13 +285,15 @@ const ManagePatients = () => {
                         >
                           <FaEdit />
                         </button>
-                        <button
-                          onClick={() => deletePatient(patient._id, patient.name)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete Patient"
-                        >
-                          <FaTrash />
-                        </button>
+                        {isOwner && (
+                          <button
+                            onClick={() => deletePatient(patient._id, patient.name)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete Patient"
+                          >
+                            <FaTrash />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -347,12 +349,14 @@ const ManagePatients = () => {
                     >
                       <FaEdit />
                     </button>
-                    <button
-                      onClick={() => deletePatient(patient._id, patient.name)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <FaTrash />
-                    </button>
+                    {isOwner && (
+                      <button
+                        onClick={() => deletePatient(patient._id, patient.name)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <FaTrash />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

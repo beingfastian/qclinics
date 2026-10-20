@@ -4,6 +4,7 @@ import { AdminContext } from "../context/AdminContext";
 import { DoctorContext } from "../context/DoctorContext.jsx";
 import { LabContext } from "../context/LabContext.jsx";
 import { useLabEnabled, useLabCounts } from "../lab/api";
+import { useBillingEnabled } from "../billing/api";
 import {
   FaCog,
   FaUserPlus,
@@ -21,6 +22,8 @@ import {
   FaFlask,
   FaVials,
   FaUsersCog,
+  FaCashRegister,
+  FaCoins,
 } from "react-icons/fa";
 
 const adminSections = [
@@ -37,11 +40,18 @@ const adminSections = [
     ],
   },
   {
+    title: "Money",
+    items: [
+      { path: "/billing", icon: <FaCashRegister />, label: "Billing", billing: true },
+      { path: "/money", icon: <FaCoins />, label: "Money", billing: true, owner: true },
+    ],
+  },
+  {
     title: "Doctors",
     items: [
-      { path: "/doctors", icon: <FaUserMd />, label: "Manage Doctors" },
-      { path: "/add-doctor", icon: <FaStethoscope />, label: "Add Doctor" },
-      { path: "/leave-management", icon: <FaCalendarCheck />, label: "Leave Requests", badge: "pendingLeave" },
+      { path: "/doctors", icon: <FaUserMd />, label: "Manage Doctors", owner: true },
+      { path: "/add-doctor", icon: <FaStethoscope />, label: "Add Doctor", owner: true },
+      { path: "/leave-management", icon: <FaCalendarCheck />, label: "Leave Requests", badge: "pendingLeave", owner: true },
     ],
   },
   {
@@ -55,13 +65,13 @@ const adminSections = [
     title: "Lab",
     items: [
       { path: "/lab-requests", icon: <FaFlask />, label: "Lab Requests", badge: "labOpen", lab: true },
-      { path: "/lab-tests", icon: <FaVials />, label: "Lab Tests", lab: true },
-      { path: "/lab-staff", icon: <FaUsersCog />, label: "Lab Staff", lab: true },
+      { path: "/lab-tests", icon: <FaVials />, label: "Lab Tests", lab: true, owner: true },
+      { path: "/lab-staff", icon: <FaUsersCog />, label: "Lab Staff", lab: true, owner: true },
     ],
   },
   {
     title: "System",
-    items: [{ path: "/settings", icon: <FaCog />, label: "Settings" }],
+    items: [{ path: "/settings", icon: <FaCog />, label: "Settings", owner: true }],
   },
 ];
 
@@ -96,10 +106,11 @@ const COLLAPSE_KEY = "sidebarCollapsed";
 
 // mobileOpen/onClose control the slide-in drawer on screens below lg.
 const Sidebar = ({ mobileOpen, onClose }) => {
-  const { aToken, leaveStats, getLeaveStats } = useContext(AdminContext);
+  const { aToken, isOwner, leaveStats, getLeaveStats } = useContext(AdminContext);
   const { dToken } = useContext(DoctorContext);
   const { lToken } = useContext(LabContext);
   const labEnabled = useLabEnabled();
+  const billingEnabled = useBillingEnabled();
   const labCounts = useLabCounts(labEnabled && Boolean(aToken || dToken || lToken));
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => {
@@ -139,9 +150,15 @@ const Sidebar = ({ mobileOpen, onClose }) => {
     return () => window.removeEventListener("keydown", onKey);
   }, [mobileOpen]);
 
-  // Lab items are hidden when the hospital has the lab module turned off
+  // Lab / billing items are hidden when the hospital has that module turned off;
+  // owner items are hidden for the shared reception login
   const sections = (aToken ? adminSections : dToken ? doctorSections : lToken ? labSections : [])
-    .map((section) => ({ ...section, items: section.items.filter((item) => labEnabled || !item.lab) }))
+    .map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) => (labEnabled || !item.lab) && (billingEnabled || !item.billing) && (!item.owner || !aToken || isOwner)
+      ),
+    }))
     .filter((section) => section.items.length);
   const badges = {
     pendingLeave: leaveStats?.pending || 0,
@@ -249,7 +266,7 @@ const Sidebar = ({ mobileOpen, onClose }) => {
         aria-label="Main navigation"
       >
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-100">
-          <span className="font-semibold text-gray-900">{aToken ? "Admin Menu" : "Doctor Menu"}</span>
+          <span className="font-semibold text-gray-900">{aToken ? (isOwner ? "Admin Menu" : "Reception Menu") : dToken ? "Doctor Menu" : "Lab Menu"}</span>
           <button
             type="button"
             onClick={onClose}

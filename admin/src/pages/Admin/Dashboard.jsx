@@ -79,7 +79,7 @@ const DoctorTodayRow = ({ row, onOpenQueue }) => {
 const Dashboard = () => {
   const { confirm } = useDialog();
   const navigate = useNavigate();
-  const { aToken, getDashData, dashData, cancelAppointment, backendUrl, doctors, getAllDoctors } = useContext(AdminContext);
+  const { aToken, isOwner, getDashData, dashData, cancelAppointment, backendUrl, doctors, getAllDoctors } = useContext(AdminContext);
   const { slotDateFormat } = useContext(AppContext);
   const labEnabled = useLabEnabled();
   const labCounts = useLabCounts(labEnabled && Boolean(aToken));
@@ -128,7 +128,7 @@ const Dashboard = () => {
       </div>
 
       {/* What needs attention today */}
-      <div className={`grid grid-cols-2 gap-4 mb-6 ${labEnabled ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+      <div className={`grid grid-cols-2 gap-4 mb-6 ${["lg:grid-cols-3", "lg:grid-cols-4", "lg:grid-cols-5"][Number(labEnabled) + Number(isOwner)]}`}>
         <StatTile
           label="Still to see"
           value={totals?.toSee ?? 0}
@@ -155,15 +155,17 @@ const Dashboard = () => {
             to="/lab-requests"
           />
         )}
-        <StatTile
-          label="Leave to review"
-          value={dashData?.pendingLeave ?? 0}
-          tone={dashData?.pendingLeave ? "warning" : undefined}
-          hint="Doctors' leave requests"
-          icon={<FaCalendarTimes />}
-          loading={loading}
-          to="/leave-management"
-        />
+        {isOwner && (
+          <StatTile
+            label="Leave to review"
+            value={dashData?.pendingLeave ?? 0}
+            tone={dashData?.pendingLeave ? "warning" : undefined}
+            hint="Doctors' leave requests"
+            icon={<FaCalendarTimes />}
+            loading={loading}
+            to="/leave-management"
+          />
+        )}
       </div>
 
       {/* Each doctor's day */}
@@ -188,7 +190,7 @@ const Dashboard = () => {
             icon={<FaUserMd />}
             title="No doctors yet"
             description="Add your doctors to start booking appointments and running the queue."
-            action={<Button variant="primary" onClick={() => navigate("/add-doctor")}>Add doctor</Button>}
+            action={isOwner ? <Button variant="primary" onClick={() => navigate("/add-doctor")}>Add doctor</Button> : undefined}
           />
         )}
       </Card>
@@ -264,9 +266,11 @@ const Dashboard = () => {
       </Card>
 
       {/* Hospital profit by day / week / month, per doctor or all */}
-      <div className="mb-6">
-        <ProfitReport mode="admin" headers={{ atoken: aToken }} doctors={doctors} />
-      </div>
+      {isOwner && (
+        <div className="mb-6">
+          <ProfitReport mode="admin" headers={{ atoken: aToken }} doctors={doctors} />
+        </div>
+      )}
 
       {/* All-time numbers */}
       <h2 className="mb-3 text-lg font-semibold text-slate-900">All time</h2>

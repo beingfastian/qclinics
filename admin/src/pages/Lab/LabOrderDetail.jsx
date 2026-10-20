@@ -14,6 +14,8 @@ import {
 } from "react-icons/fa";
 import { labGet, labPost, currentRole, STATUS, when, ageFrom, errorText, openReport, reportUrl, labChanged } from "../../lab/api";
 import { printLabRequestSlip } from "../../components/PrintSlip";
+import { deskRole, useBillingEnabled } from "../../billing/api";
+import { PaidBadge } from "../../components/billing/PaidBadge";
 
 const BACK = { lab: "/lab", doctor: "/doctor/lab-reports", admin: "/lab-requests" };
 const ACTION_TEXT = {
@@ -36,6 +38,7 @@ const LabOrderDetail = () => {
   const { prompt } = useDialog();
   const { id } = useParams();
   const role = currentRole() || "lab";
+  const billingEnabled = useBillingEnabled();
   const [order, setOrder] = useState(null);
   const [patient, setPatient] = useState(null);
   const [error, setError] = useState("");
@@ -166,7 +169,9 @@ const LabOrderDetail = () => {
   const status = STATUS[order.status] || {};
   const canUpload = role === "lab" && ["ordered", "returned", "report_uploaded"].includes(order.status);
   const canReview = role === "doctor" && order.status === "report_uploaded";
-  const canCancel = (role === "doctor" || role === "admin") && ["ordered", "returned", "report_uploaded"].includes(order.status);
+  // The shared reception login can't cancel requests (the doctor or the owner can)
+  const canCancel =
+    (role === "doctor" || (role === "admin" && deskRole() === "admin")) && ["ordered", "returned", "report_uploaded"].includes(order.status);
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
@@ -175,6 +180,7 @@ const LabOrderDetail = () => {
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <h1 className="text-2xl font-semibold text-slate-900">Lab request L-{order.orderNumber}</h1>
         <span className={`px-2 py-0.5 rounded-full text-sm font-medium ${status.className}`}>{status.label}</span>
+        {billingEnabled && role !== "doctor" && <PaidBadge order={order} />}
         {order.urgent && (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-semibold bg-red-100 text-red-700">
             <FaExclamationTriangle /> Urgent

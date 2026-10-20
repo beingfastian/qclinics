@@ -30,9 +30,11 @@ import LabOrders from "./pages/Lab/LabOrders.jsx";
 import LabOrderDetail from "./pages/Lab/LabOrderDetail.jsx";
 import LabTests from "./pages/Lab/LabTests.jsx";
 import LabStaff from "./pages/Lab/LabStaff.jsx";
+import Billing from "./pages/Billing.jsx";
+import Money from "./pages/Money.jsx";
 
 const App = () => {
-  const { aToken } = useContext(AdminContext);
+  const { aToken, isOwner } = useContext(AdminContext);
   const { dToken } = useContext(DoctorContext);
   const { lToken } = useContext(LabContext);
   const [navOpen, setNavOpen] = useState(false);
@@ -47,7 +49,22 @@ const App = () => {
             <div className="flex">
               <Sidebar mobileOpen={navOpen} onClose={closeNav} />
               <main className="flex-1 min-w-0">
-              {aToken ? (
+              {aToken && !isOwner ? (
+                // Shared reception login: the front desk only (no doctors' settings,
+                // leave decisions, profit, staff or system settings)
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/queue" element={<Queue />} />
+                  <Route path="/all-appointments" element={<AllAppointments />} />
+                  <Route path="/book-appointment" element={<BookAppointmentForPatient />} />
+                  <Route path="/patients" element={<ManagePatients />} />
+                  <Route path="/add-patient" element={<AddPatient />} />
+                  <Route path="/lab-requests" element={<LabOrders />} />
+                  <Route path="/lab-requests/:id" element={<LabOrderDetail />} />
+                  <Route path="/billing" element={<Billing />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              ) : aToken ? (
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/queue" element={<Queue />} />
@@ -63,6 +80,8 @@ const App = () => {
                   <Route path="/lab-requests/:id" element={<LabOrderDetail />} />
                   <Route path="/lab-tests" element={<LabTests />} />
                   <Route path="/lab-staff" element={<LabStaff />} />
+                  <Route path="/billing" element={<Billing />} />
+                  <Route path="/money" element={<Money />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               ) : dToken ? (

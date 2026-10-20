@@ -23,6 +23,10 @@ const authRoles = (...roles) => async (req, res, next) => {
       req.actor = { role: "admin", name: "Admin" };
       return next();
     }
+    if (decoded.role === "reception" && roles.includes("reception")) {
+      req.actor = { role: "reception", name: "Reception" };
+      return next();
+    }
     if (decoded.role === "doctor" && roles.includes("doctor") && decoded.id) {
       const doctor = await doctorModel.findById(decoded.id).select("name speciality").lean();
       if (!doctor) return res.status(401).json({ success: false, message: "Please login again." });
