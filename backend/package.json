@@ -10,7 +10,7 @@
     "server": "nodemon server.js",
     "templates:sync": "node scripts/syncTemplates.js",
     "migrate:appointments": "node scripts/migrateAppointments.js",
-    "check:integration": "node scripts/checkIntegration.mjs && node scripts/checkLab.mjs && node scripts/checkProfit.mjs && node scripts/checkToday.mjs && node scripts/checkLogin.mjs && node scripts/checkRateLimit.mjs && node scripts/checkBilling.mjs"
+    "check:integration": "node scripts/checkIntegration.mjs && node scripts/checkLab.mjs && node scripts/checkProfit.mjs && node scripts/checkToday.mjs && node scripts/checkLogin.mjs && node scripts/checkRateLimit.mjs && node scripts/checkEmail.mjs && node scripts/checkBilling.mjs"
   },
   "author": "",
   "license": "ISC",
@@ -25,7 +25,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.7.2",
     "multer": "^1.4.5-lts.1",
-    "nodemailer": "^7.0.3",
+    "nodemailer": "^10.0.16",
     "socket.io": "^4.8.1",
     "twilio": "^5.8.0",
     "validator": "^13.12.0"
