@@ -244,6 +244,11 @@ try {
     }
   }
   check("Doctor's paged list matches their old screen for every range and status", mismatches.length === 0, mismatches.join(" | "));
+  const ownName = doctors[2].name.split(" ")[0];
+  data = await get(`/api/doctor/appointments?range=all&q=${ownName}&limit=200`, docH);
+  check("A doctor searching their own name finds no rows (patient fields only, as before)", data.success && data.appointments.length === 0, String(data.appointments?.length));
+  data = await get(`/api/doctor/appointments?range=all&q=0311&limit=200`, docH);
+  check("A doctor's search matches patient phone numbers", data.appointments.length > 0 && data.appointments.length === all.filter((a) => a.docId === String(doctors[2]._id) && /0311/.test(`${a.userData.name} ${a.userData.phone} ${a.userData.whatsappNumber}`)).length);
   data = await get(`/api/doctor/appointments?range=all&docId=${doctors[0]._id}&limit=200`, docH);
   check("A doctor can't page another doctor's appointments", data.appointments.every((a) => a.docId === String(doctors[2]._id)) && data.counts.all === all.filter((a) => a.docId === String(doctors[2]._id)).length);
 

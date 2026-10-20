@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { FaWhatsapp, FaEnvelope, FaSearch, FaCalendarPlus, FaExchangeAlt, FaCalendarDay, FaUserSlash, FaFlask, FaCheck, FaTimes } from "react-icons/fa";
 import { DoctorContext } from "../../context/DoctorContext";
 import { AppContext } from "../../context/AppContext";
@@ -7,10 +7,9 @@ import { useLabEnabled } from "../../lab/api";
 import FollowUpModal from "../../components/FollowUpModal";
 import { DoctorRescheduleModal } from "../../components/RescheduleModal";
 import DayActionsDialog from "../../components/DayActionsDialog";
-import { appointmentTime, compareSlotDates, hasStarted, hospitalSlotDate } from "../../utils/slots";
+import { hasStarted } from "../../utils/slots";
+import useAppointmentPages, { fetchDayAppointments } from "../../utils/useAppointmentPages";
 import { Avatar, Badge, Button, Card, EmptyState, Input, Menu, Segmented, Select, useDialog } from "../../components/ui";
-
-const PAGE_SIZE = 50;
 
 const StatusBadge = ({ item }) => {
   if (item.cancelled) return <Badge tone="danger">Cancelled</Badge>;
@@ -29,7 +28,7 @@ const TypeBadge = ({ item }) =>
 
 const DoctorAppointments = () => {
   const { confirm } = useDialog();
-  const { dToken, appointments, getAppointments, completeAppointment, cancelAppointment, rescheduleDay, cancelDay, profileData, markNoShow } =
+  const { dToken, backendUrl, appointmentsVersion, completeAppointment, cancelAppointment, rescheduleDay, cancelDay, profileData, markNoShow } =
     useContext(DoctorContext);
   const { calculateAge, slotDateFormat, currency } = useContext(AppContext);
   const labEnabled = useLabEnabled();
@@ -37,52 +36,27 @@ const DoctorAppointments = () => {
   const [range, setRange] = useState("today");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [shown, setShown] = useState(PAGE_SIZE);
   const [followUpFor, setFollowUpFor] = useState(null);
   const [labFor, setLabFor] = useState(null);
   const [rescheduleFor, setRescheduleFor] = useState(null);
   const [showDayActions, setShowDayActions] = useState(false);
 
+  const [search, setSearch] = useState(""); // what is sent: the search box, once typing pauses
   useEffect(() => {
-    dToken && getAppointments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dToken]);
-  useEffect(() => setShown(PAGE_SIZE), [range, searchTerm, filterStatus]);
+    const timer = setTimeout(() => setSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-  // Follow-up booked from each visit: parent appointment id -> follow-up appointment
-  const followUps = useMemo(() => {
-    const map = {};
-    appointments.forEach((a) => {
-      if (a.parentAppointmentId && !a.cancelled) map[a.parentAppointmentId] = a;
-    });
-    return map;
-  }, [appointments]);
-
-  const today = hospitalSlotDate();
-  const inRange = useMemo(() => {
-    const groups = { today: [], upcoming: [], past: [], all: appointments };
-    for (const item of appointments) {
-      const order = compareSlotDates(item.slotDate, today);
-      if (order === 0) groups.today.push(item);
-      else if (order > 0) groups.upcoming.push(item);
-      else groups.past.push(item);
-    }
-    return groups;
-  }, [appointments, today]);
-
-  const filteredAppointments = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    const list = inRange[range].filter((item) => {
-      if (term && !`${item.userData?.name} ${item.userData?.phone || ""} ${item.userData?.whatsappNumber || ""}`.toLowerCase().includes(term)) return false;
-      if (filterStatus === "completed" && !item.isCompleted) return false;
-      if (filterStatus === "cancelled" && !item.cancelled) return false;
-      if (filterStatus === "no_show" && item.status !== "no_show") return false;
-      if (filterStatus === "pending" && (item.isCompleted || item.cancelled || item.status === "no_show")) return false;
-      return true;
-    });
-    const direction = range === "today" || range === "upcoming" ? 1 : -1;
-    return list.sort((a, b) => direction * (appointmentTime(a) - appointmentTime(b)));
-  }, [inRange, range, searchTerm, filterStatus]);
+  // Filtered, sorted and paged by the server (today and upcoming soonest first,
+  // past and all newest first). Each visit carries the follow-up booked from it.
+  const { items: visible, counts, summary, hasMore, loading, loadMore } = useAppointmentPages({
+    url: `${backendUrl}/api/doctor/appointments`,
+    headers: { dToken },
+    filters: { range, status: filterStatus, q: search },
+    refreshKey: appointmentsVersion,
+    enabled: Boolean(dToken),
+  });
+  const fetchDay = (docId, slotDate) => fetchDayAppointments(`${backendUrl}/api/doctor/appointments`, { dToken }, undefined, slotDate);
 
   const askComplete = async (item) =>
     (await confirm({
@@ -111,7 +85,7 @@ const DoctorAppointments = () => {
     // Next step: see the patient; after the visit, book the follow-up
     const primary = active
       ? { key: "complete", label: "Mark seen", icon: <FaCheck />, onClick: () => askComplete(item) }
-      : item.isCompleted && !followUps[item._id]
+      : item.isCompleted && !item.followUp
         ? { key: "followup", label: "Follow-up", icon: <FaCalendarPlus />, onClick: () => setFollowUpFor(item) }
         : null;
     const items = [
@@ -135,16 +109,15 @@ const DoctorAppointments = () => {
   };
 
   const followUpNote = (item) =>
-    followUps[item._id] && (
+    item.followUp && (
       <p className="mt-0.5 text-xs text-violet-700">
-        Follow-up: {slotDateFormat(followUps[item._id].slotDate)}, {followUps[item._id].slotTime}
+        Follow-up: {slotDateFormat(item.followUp.slotDate)}, {item.followUp.slotTime}
       </p>
     );
 
   const age = (dob) => (calculateAge(dob) !== "—" ? `${calculateAge(dob)} yrs` : "");
   const fee = (item) => `${currency} ${item.amount ?? ""} · ${item.payment ? "Online" : "Cash"}`;
   const filtersOn = searchTerm || filterStatus !== "all";
-  const visible = filteredAppointments.slice(0, shown);
 
   return (
     <div className="w-full p-4 sm:p-6 max-w-7xl mx-auto">
@@ -164,10 +137,10 @@ const DoctorAppointments = () => {
           value={range}
           onChange={setRange}
           options={[
-            { value: "today", label: "Today", count: inRange.today.length },
-            { value: "upcoming", label: "Upcoming", count: inRange.upcoming.length },
-            { value: "past", label: "Past", count: inRange.past.length },
-            { value: "all", label: "All", count: appointments.length },
+            { value: "today", label: "Today", count: counts?.today },
+            { value: "upcoming", label: "Upcoming", count: counts?.upcoming },
+            { value: "past", label: "Past", count: counts?.past },
+            { value: "all", label: "All", count: counts?.all },
           ]}
         />
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -202,7 +175,9 @@ const DoctorAppointments = () => {
           <div className="col-span-2 text-right">Actions</div>
         </div>
 
-        {visible.length > 0 ? (
+        {visible.length === 0 && loading ? (
+          <p className="px-5 py-10 text-center text-sm text-slate-500" role="status">Loading appointments…</p>
+        ) : visible.length > 0 ? (
           <ul className="divide-y divide-slate-100">
             {visible.map((item) => (
               <li key={item._id} className="px-5 py-3">
@@ -281,10 +256,10 @@ const DoctorAppointments = () => {
           />
         )}
 
-        {filteredAppointments.length > shown && (
+        {hasMore && (
           <div className="border-t border-slate-100 p-4 text-center">
-            <Button onClick={() => setShown(shown + PAGE_SIZE)}>
-              Show {Math.min(PAGE_SIZE, filteredAppointments.length - shown)} more ({filteredAppointments.length - shown} left)
+            <Button onClick={loadMore} disabled={loading}>
+              {loading ? "Loading…" : `Show more (${Math.max(0, (summary?.total ?? 0) - visible.length)} left)`}
             </Button>
           </div>
         )}
@@ -296,7 +271,7 @@ const DoctorAppointments = () => {
       {showDayActions && (
         <DayActionsDialog
           doctorName={profileData?.name}
-          appointments={appointments}
+          fetchDay={fetchDay}
           onMove={rescheduleDay}
           onCancelDay={cancelDay}
           onClose={() => setShowDayActions(false)}

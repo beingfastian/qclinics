@@ -82,7 +82,7 @@ const appointmentsDoctor = async (req, res) => {
     const { docId } = req.body;
     // With ?range= (or ?day=): one page of this doctor's appointments, filtered in the database
     if (req.query.range || req.query.day) {
-      return res.json({ success: true, paged: true, ...(await listAppointments({ ...parseListQuery(req.query), docId })) });
+      return res.json({ success: true, paged: true, ...(await listAppointments({ ...parseListQuery(req.query), docId, searchDoctorName: false })) });
     }
     const appointments = await appointmentModel.find({ docId }, LIST_PROJECTION).lean();
 

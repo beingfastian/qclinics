@@ -10,27 +10,15 @@ const DoctorContextProvider = (props) => {
     localStorage.getItem("dToken") ? localStorage.getItem("dToken") : ""
   );
   const [dashData, setDashData] = useState(false);
-  const [appointments, setAppointments] = useState([]);
+  // Appointment lists load their own pages (utils/useAppointmentPages.js); this
+  // number changes after an action so whatever list is on screen reloads
+  const [appointmentsVersion, setAppointmentsVersion] = useState(0);
   const [profileData, setProfileData] = useState(false);
   const [leaveRequests, setLeaveRequests] = useState([]); 
   const [doctorData, setDoctorData] = useState(null); 
 
-  const getAppointments = async () => {
-    try {
-      const { data } = await axios.get(
-        backendUrl + "/api/doctor/appointments",
-        { headers: { dToken } }
-      );
-      if (data.success) {
-        setAppointments(data.appointments);
-      } else {
-        toast.error(data.message);
-      }
-    } catch (error) {
-      console.log(error);
-      toast.error(error.message);
-    }
-  };
+  // Tell the appointment list on screen to reload
+  const refreshAppointments = () => setAppointmentsVersion((v) => v + 1);
 
   const completeAppointment = async (appointmentId) => {
     try {
@@ -41,7 +29,7 @@ const DoctorContextProvider = (props) => {
       );
       if (data.success) {
         toast.success(data.message);
-        getAppointments();
+        refreshAppointments();
       } else {
         toast.error(data.message);
       }
@@ -60,7 +48,7 @@ const DoctorContextProvider = (props) => {
       );
       if (data.success) {
         toast.success(data.message);
-        getAppointments();
+        refreshAppointments();
       } else {
         toast.error(data.message);
       }
@@ -80,7 +68,7 @@ const DoctorContextProvider = (props) => {
       );
       if (data.success) {
         toast.success(data.message);
-        getAppointments();
+        refreshAppointments();
         getDashData();
       } else {
         toast.error(data.message);
@@ -103,7 +91,7 @@ const DoctorContextProvider = (props) => {
         toast.success(
           data.patientNotified ? "Follow-up scheduled. The patient will be notified." : "Follow-up scheduled."
         );
-        getAppointments();
+        refreshAppointments();
         // The created appointment, so the caller can offer a printable slip
         return data.appointment || true;
       }
@@ -131,7 +119,7 @@ const DoctorContextProvider = (props) => {
     const data = await postDoctor("/api/doctor/reschedule-appointment", { appointmentId, slotDate, slotTime, reason });
     if (data.success) {
       toast.success(data.message);
-      getAppointments();
+      refreshAppointments();
     }
     return data.success;
   };
@@ -140,7 +128,7 @@ const DoctorContextProvider = (props) => {
   const rescheduleDay = async (_docId, fromSlotDate, toSlotDate, reason) => {
     const data = await postDoctor("/api/doctor/reschedule-day", { fromSlotDate, toSlotDate, reason });
     if (!data.success) return null;
-    getAppointments();
+    refreshAppointments();
     return data;
   };
 
@@ -148,7 +136,7 @@ const DoctorContextProvider = (props) => {
   const cancelDay = async (_docId, slotDate, reason) => {
     const data = await postDoctor("/api/doctor/cancel-day", { slotDate, reason });
     if (!data.success) return null;
-    getAppointments();
+    refreshAppointments();
     return data;
   };
 
@@ -280,8 +268,8 @@ const DoctorContextProvider = (props) => {
     backendUrl,
     dToken,
     setDToken,
-    appointments,
-    getAppointments,
+    appointmentsVersion,
+    refreshAppointments,
     completeAppointment,
     cancelAppointment,
     markNoShow,

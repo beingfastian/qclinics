@@ -9,7 +9,8 @@
 //   range   today | upcoming | past | all   (hospital days)
 //   status  pending (booked or in queue) | completed | no_show | cancelled
 //   notify  whatsapp | email (patients without WhatsApp)
-//   q       patient name, phone or WhatsApp number, or doctor name (any part, any case)
+//   q       patient name, phone or WhatsApp number, or doctor name (any part, any case;
+//           a doctor's own list searches the patient only, as their screen always did)
 //   day     one slot date ("d_m_yyyy"), e.g. for Manage a Day
 // Today and upcoming are soonest first; past and all are newest first.
 import mongoose from "mongoose";
@@ -75,7 +76,7 @@ const NOTIFY_FILTERS = {
 const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // The filters except the range (counts per range use these too)
-const baseFilter = ({ docId, status, notify, q, day }) => {
+const baseFilter = ({ docId, status, notify, q, day, searchDoctorName = true }) => {
   const filter = {};
   if (docId) filter.docId = String(docId);
   if (day && isValidSlotDate(day)) filter.slotDate = day;
@@ -87,7 +88,7 @@ const baseFilter = ({ docId, status, notify, q, day }) => {
       { "userData.name": pattern },
       { "userData.phone": pattern },
       { "userData.whatsappNumber": pattern },
-      { "docData.name": pattern },
+      ...(searchDoctorName ? [{ "docData.name": pattern }] : []),
     ];
   }
   return filter;

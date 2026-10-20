@@ -5,6 +5,7 @@ import { FaCheck, FaTimes, FaEye, FaClock, FaFilter, FaCalendarAlt } from "react
 import { toast } from "react-toastify";
 import { FaExclamationTriangle } from "react-icons/fa";
 import DayActionsDialog from "../../components/DayActionsDialog";
+import { fetchDayAppointments } from "../../utils/useAppointmentPages";
 import { AppContext } from "../../context/AppContext.jsx";
 import { StatTile } from "../../components/ui";
 
@@ -19,8 +20,7 @@ const AdminLeaveManagement = () => {
     getLeaveStats,
     doctors,
     getAllDoctors,
-    appointments,
-    getAllAppointments,
+    backendUrl,
     rescheduleDay,
     cancelDay,
   } = useContext(AdminContext);
@@ -47,7 +47,6 @@ const AdminLeaveManagement = () => {
       getAllLeaveRequests();
       getLeaveStats();
       getAllDoctors();
-      getAllAppointments();
     }
   }, [aToken]);
 
@@ -388,7 +387,7 @@ const AdminLeaveManagement = () => {
       {manageDay && (
         <DayActionsDialog
           doctors={doctors}
-          appointments={appointments}
+          fetchDay={(docId, slotDate) => fetchDayAppointments(`${backendUrl}/api/admin/appointments`, { atoken: aToken }, docId, slotDate)}
           defaultDocId={manageDay.docId}
           defaultSlotDate={manageDay.slotDate}
           onMove={rescheduleDay}

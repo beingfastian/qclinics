@@ -10,7 +10,9 @@ const AdminContextProvider = (props) => {
   );
   const [doctors, setDoctors] = useState([]);
   const [patients, setPatients] = useState([]);
-  const [appointments, setAppointments] = useState([]);
+  // Appointment lists load their own pages (utils/useAppointmentPages.js); this
+  // number changes after an action so whatever list is on screen reloads
+  const [appointmentsVersion, setAppointmentsVersion] = useState(0);
   const [dashData, setDashData] = useState(false);
   // Add leave requests state
   const [leaveRequests, setLeaveRequests] = useState([]);
@@ -78,22 +80,8 @@ const getAllPatients = async () => {
   }
 };
 
-// Appointments
-const getAllAppointments = async () => {
-  try {
-    const { data } = await axios.get(
-      backendUrl + "/api/admin/appointments",
-      { headers: { atoken: aToken } }   // ✅ fixed
-    );
-    if (data.success) {
-      setAppointments(data.appointments);
-    } else {
-      toast.error(data.message);
-    }
-  } catch (error) {
-    toast.error(error.message);
-  }
-};
+// Appointments: tell the list on screen to reload
+const refreshAppointments = () => setAppointmentsVersion((v) => v + 1);
 
 const cancelAppointment = async (appointmentId) => {
   try {
@@ -116,7 +104,7 @@ const cancelAppointment = async (appointmentId) => {
 // Refresh everything that shows appointments or free slots
 const refreshAfterChange = () => {
   getDashData();
-  getAllAppointments();
+  refreshAppointments();
   getAllDoctors();
 };
 
@@ -170,7 +158,7 @@ const markNoShow = async (appointmentId) => {
     if (data.success) {
       toast.success(data.message);
       getDashData();
-      getAllAppointments();
+      refreshAppointments();
     } else {
       toast.error(data.message);
     }
@@ -299,8 +287,8 @@ const getLeaveStats = async () => {
     getAllPatients,
     
     // Appointments
-    appointments,
-    getAllAppointments,
+    appointmentsVersion,
+    refreshAppointments,
     cancelAppointment,
     rescheduleAppointment,
     rescheduleDay,
