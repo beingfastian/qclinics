@@ -82,6 +82,17 @@ const get = async (p, headers = {}) => {
 try {
   let r = await fetch(base + "/");
   check("Database down: the health check still answers", r.status === 200 && (await r.text()) === "API Working");
+
+  // Security headers (helmet), chosen so lab report previews keep working: the staff
+  // app shows reports from this API in an <iframe>/<img> and opens PDFs in a new tab
+  const h = r.headers;
+  check("Security headers: HTTPS only (HSTS)", /max-age=\d+/.test(h.get("strict-transport-security") || ""), h.get("strict-transport-security"));
+  check("Security headers: no MIME sniffing", h.get("x-content-type-options") === "nosniff");
+  check("Security headers: no referrer leaks", h.get("referrer-policy") === "no-referrer");
+  check("Security headers: the server software isn't advertised", !h.get("x-powered-by"));
+  check("Report previews keep working: may be embedded by the staff app (no X-Frame-Options, no CSP)", !h.get("x-frame-options") && !h.get("content-security-policy"));
+  check("Report previews keep working: images/PDFs may load from the staff app's domain", h.get("cross-origin-resource-policy") === "cross-origin");
+  check("Reports opened in a new tab keep working (no opener policy)", !h.get("cross-origin-opener-policy"));
   r = await get("/api/billing/status");
   check("Database down: billing on/off status still answers (no database needed)", r.status === 200 && r.body?.success === true, JSON.stringify(r.body));
   r = await get("/api/live");

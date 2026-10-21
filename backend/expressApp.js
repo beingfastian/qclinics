@@ -5,6 +5,7 @@
 //     run from a Vercel cron calling /api/cron/reminders)
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import "dotenv/config";
 import connectDB from "./config/mongodb.js";
 import mongoose from "mongoose";
@@ -74,6 +75,20 @@ connectCloudinary();
 if (!onVercel) testEmailConnection();
 
 // Middlewares
+// Security headers. This API serves JSON and lab report files that the staff app
+// shows in an <iframe>/<img> and opens in a new tab, so three defaults are relaxed:
+// no CSP (it can break the browser's PDF viewer; the staff app has its own CSP),
+// no X-Frame-Options (the report <iframe>), resources usable cross-origin (the
+// report <img>), and no opener policy (reports opened in a new tab).
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    frameguard: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginOpenerPolicy: false,
+    referrerPolicy: { policy: "no-referrer" },
+  })
+);
 app.use(cors(corsOptions));
 // Keep the raw body: webhook signatures (Kapso) are computed over the exact bytes
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
