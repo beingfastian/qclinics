@@ -141,6 +141,27 @@ try {
   check("Connected for the following requests", mongoose.connection.readyState === 1);
   r = await get("/api/admin/appointments?range=today", admin);
   check("Other database routes work too", r.status === 200 && r.body?.success === true);
+
+  // --- Public queue routes: cached a few seconds, open to any website ---
+  const fromSite = { Origin: "https://hospital-site.example" };
+  r = await get("/api/queue/public/board", fromSite);
+  check("Waiting-room board is cached at the edge for 5 s", r.status === 200 && /s-maxage=5/.test(r.headers.get("cache-control") || ""), r.headers.get("cache-control"));
+  check("Public board answers any website (patient site, waiting-room TV)", r.headers.get("access-control-allow-origin") === "*" && !/origin/i.test(r.headers.get("vary") || ""));
+  r = await get("/api/queue/public/token/zzzzzzzz", fromSite);
+  check("Unknown token: 404 and never cached", r.status === 404 && r.headers.get("cache-control") === "no-store");
+  r = await get("/api/admin/dashboard", { ...admin, ...fromSite });
+  check("Private routes still refuse other websites", !r.headers.get("access-control-allow-origin"));
+  let reads = 0;
+  mongoose.set("debug", (collection, method) => { if (collection === "queuetokens" && method === "distinct") reads++; });
+  await new Promise((resolve) => setTimeout(resolve, 3100)); // past the board's 3 s cache
+  await Promise.all(Array.from({ length: 10 }, () => get("/api/queue/public/board")));
+  check("10 screens asking at once share one database read", reads === 1, String(reads));
+  await get("/api/queue/public/board");
+  check("Within 3 s the board is served from memory", reads === 1, String(reads));
+  await new Promise((resolve) => setTimeout(resolve, 3100));
+  await get("/api/queue/public/board");
+  check("After 3 s the board is read again (stays current)", reads === 2, String(reads));
+  mongoose.set("debug", false);
 } catch (error) {
   errorLog("TEST CRASHED:", error);
   failures++;

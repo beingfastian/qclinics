@@ -89,7 +89,11 @@ app.use(
     referrerPolicy: { policy: "no-referrer" },
   })
 );
-app.use(cors(corsOptions));
+// The public queue routes (waiting-room screen, a patient's token page) answer any
+// website: they need no login, and their responses are cached at the edge for all
+// callers alike. Everything else only answers the origins in CORS_ORIGINS.
+const publicCors = { origin: "*", maxAge: 7200 };
+app.use(cors((req, callback) => callback(null, req.path.startsWith("/api/queue/public/") ? publicCors : corsOptions)));
 // Keep the raw body: webhook signatures (Kapso) are computed over the exact bytes
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: true }));
