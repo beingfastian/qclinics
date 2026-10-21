@@ -14,6 +14,7 @@ import { authPharmacy, ownerOnly } from "./auth.js";
 import { permissionsOf } from "./permissions.js";
 import * as staff from "./services/staffService.js";
 import { createStaffSchema, updateStaffSchema, idParam } from "./validation.js";
+import { mountStockRoutes } from "./routes/stockRoutes.js";
 
 export const pharmacyRouter = () => {
   const router = express.Router();
@@ -42,6 +43,9 @@ export const pharmacyRouter = () => {
     validate(updateStaffSchema),
     handle(async (req) => ({ staff: await staff.updateStaff(req.params.id, req.body), message: "Pharmacy account updated" }))
   );
+
+  // Items, suppliers, purchases, stock
+  mountStockRoutes(router);
 
   return router;
 };
