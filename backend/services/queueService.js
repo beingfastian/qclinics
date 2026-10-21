@@ -22,6 +22,7 @@ import crypto from "crypto";
 import { queueTokenModel, queueDayModel } from "../model/queueModel.js";
 import appointmentModel from "../model/appointmentModel.js";
 import doctorModel from "../model/doctorModel.js";
+import mongoose from "mongoose";
 import userModel from "../model/userModel.js";
 import { hospitalSlotDate, slotToDate, HOSPITAL_UTC_OFFSET_MINUTES } from "../utils/slots.js";
 import { normalizePhone, phoneVariants } from "../whatsapp/phone.js";
@@ -679,6 +680,15 @@ export const publicToken = async (publicId) => {
   };
 };
 
+// Has every patient got phoneKeys yet (config/migrations.js)? Checked until it has.
+let phoneKeysReady = false;
+const phoneKeysIndexed = async () => {
+  if (!phoneKeysReady) {
+    phoneKeysReady = Boolean(await mongoose.connection.collection("migrations").findOne({ _id: "patient-phoneKeys" }));
+  }
+  return phoneKeysReady;
+};
+
 // Find patients for reception: by phone (any format), CNIC, or name. Family members
 // sharing a phone all appear, so reception picks the right one.
 export const searchPatients = async (query) => {
@@ -690,7 +700,12 @@ export const searchPatients = async (query) => {
   else if (digits.length >= 4 && digits.length >= text.replace(/[\s+()-]/g, "").length - 1) {
     // Match the number however it was typed or stored: 0300..., 92300..., +92300...
     const core = digits.replace(/^(0092|92|0)/, "");
-    filter = { $or: [{ phone: { $regex: core } }, { whatsappNumber: { $regex: core } }] };
+    // A full number: an indexed lookup (was reading every patient: ~200 ms at 50,000).
+    // Part of a number: matched anywhere in the stored numbers, as before.
+    filter =
+      core.length >= 10 && (await phoneKeysIndexed())
+        ? { phoneKeys: core.slice(-10) }
+        : { $or: [{ phone: { $regex: core } }, { whatsappNumber: { $regex: core } }] };
   } else {
     filter = { name: { $regex: text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" } };
   }

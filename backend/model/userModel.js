@@ -22,8 +22,31 @@ const userSchema = new mongoose.Schema({
   // records, which then use WHATSAPP_DEFAULT_LANGUAGE (Urdu unless set).
   language: { type: String, enum: ["ur", "en"] },
   email: { type: String, unique: true, sparse: true },
+  // The last 10 digits of phone and whatsappNumber, however they were typed
+  // ("0300 1234567", "+923001234567"), indexed so reception's full-number search is
+  // a direct lookup instead of reading every patient. Kept up to date below.
+  phoneKeys: { type: [String], index: true },
   password: { type: String },
   createdAt: { type: Date, default: Date.now },
+});
+
+export const phoneKey = (value) => {
+  const digits = String(value || "").replace(/\D/g, "");
+  return digits.length >= 10 ? digits.slice(-10) : null;
+};
+export const phoneKeysOf = (phone, whatsappNumber) => [...new Set([phoneKey(phone), phoneKey(whatsappNumber)].filter(Boolean))];
+
+// new / create / save
+userSchema.pre("save", function () {
+  this.phoneKeys = phoneKeysOf(this.phone, this.whatsappNumber);
+});
+// findByIdAndUpdate / findOneAndUpdate that change a number: recompute from the saved record
+userSchema.post("findOneAndUpdate", async function () {
+  const update = this.getUpdate() || {};
+  const touched = (fields) => fields && ("phone" in fields || "whatsappNumber" in fields);
+  if (!touched(update) && !touched(update.$set) && !touched(update.$unset)) return;
+  const saved = await this.model.findOne(this.getQuery()).select("phone whatsappNumber").lean();
+  if (saved) await this.model.updateOne({ _id: saved._id }, { $set: { phoneKeys: phoneKeysOf(saved.phone, saved.whatsappNumber) } });
 });
 
 const userModel = mongoose.models.user || mongoose.model("user", userSchema);

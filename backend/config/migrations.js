@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import userModel from "../model/userModel.js";
+import userModel, { phoneKeysOf } from "../model/userModel.js";
 import appointmentModel from "../model/appointmentModel.js";
 import { slotToDate } from "../utils/slots.js";
 
@@ -40,10 +40,35 @@ const appointmentStartAt = async () => {
   await done.updateOne({ _id: "appointment-startAt" }, { $set: { at: new Date(), updated: updates.length } }, { upsert: true });
 };
 
+// Patients from before phoneKeys existed get them (for the indexed phone search).
+// Until this has run, the search falls back to the old way (services/queueService.js).
+export const PHONE_KEYS_MARKER = "patient-phoneKeys";
+const patientPhoneKeys = async () => {
+  const done = mongoose.connection.collection("migrations");
+  if (await done.findOne({ _id: PHONE_KEYS_MARKER })) return;
+  let updated = 0;
+  for (;;) {
+    const batch = await userModel.collection
+      .find({ phoneKeys: { $exists: false } })
+      .project({ phone: 1, whatsappNumber: 1 })
+      .limit(1000)
+      .toArray();
+    if (!batch.length) break;
+    await userModel.collection.bulkWrite(
+      batch.map((u) => ({ updateOne: { filter: { _id: u._id }, update: { $set: { phoneKeys: phoneKeysOf(u.phone, u.whatsappNumber) } } } })),
+      { ordered: false }
+    );
+    updated += batch.length;
+  }
+  if (updated) console.log(`Migration: indexed the phone numbers of ${updated} patient(s)`);
+  await done.updateOne({ _id: PHONE_KEYS_MARKER }, { $set: { at: new Date(), updated } }, { upsert: true });
+};
+
 export const runMigrations = async () => {
   for (const [name, step] of [
     ["patient phone index", patientPhoneIndex],
     ["appointment startAt", appointmentStartAt],
+    ["patient phone keys", patientPhoneKeys],
   ]) {
     try {
       await step();
