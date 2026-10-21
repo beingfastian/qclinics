@@ -160,6 +160,19 @@ try {
   r = await get("/api/admin/appointments?range=today", admin);
   check("Other database routes work too", r.status === 200 && r.body?.success === true);
 
+  // A warm instance whose connection dropped (seen in production: a Vercel instance
+  // thawed with a dead connection kept answering 503 for 25+ minutes). The next
+  // request must reconnect, not wait forever for a reconnect that never comes.
+  const listenersBefore = mongoose.connection.listenerCount("connected");
+  await mongoose.connection.close();
+  check("(simulated) the connection is down", mongoose.connection.readyState === 0);
+  r = await get("/api/admin/dashboard", admin);
+  check("After a dropped connection, the next request reconnects and succeeds", r.status === 200 && r.body?.success === true, `${r.status} ${JSON.stringify(r.body)?.slice(0, 100)}`);
+  await mongoose.connection.close();
+  await Promise.all(Array.from({ length: 15 }, () => get("/api/admin/dashboard", admin)));
+  check("Many requests while reconnecting don't pile up listeners", mongoose.connection.listenerCount("connected") <= listenersBefore + 1, `${listenersBefore} -> ${mongoose.connection.listenerCount("connected")}`);
+  check("Connected again", mongoose.connection.readyState === 1);
+
   // --- Public queue routes: cached a few seconds, open to any website ---
   const fromSite = { Origin: "https://hospital-site.example" };
   r = await get("/api/queue/public/board", fromSite);

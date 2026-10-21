@@ -15,25 +15,20 @@ const serverTimeout = () => Math.max(500, Number(process.env.DB_SERVER_TIMEOUT_M
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let announced = false;
-let everConnected = false;
 let connecting = null;
-
-// Once connected, the driver reconnects by itself after a network blip: wait for it
-const reconnected = () =>
-  new Promise((resolve) => mongoose.connection.once("connected", () => resolve(mongoose.connection)));
 
 // Resolves when connected; rejects when every try of this round failed. Calling it
 // again after a failure starts a new round (the next request tries again).
 const connectDB = () => {
   if (!announced) {
     announced = true;
-    mongoose.connection.on("connected", () => {
-      everConnected = true;
-      console.log("Database Connected");
-    });
+    mongoose.connection.on("connected", () => console.log("Database Connected"));
   }
   if (mongoose.connection.readyState === 1) return Promise.resolve(mongoose.connection);
-  if (everConnected) return reconnected();
+  // Not connected: start one connection round that every waiting request shares.
+  // Also after a connection that was up and then dropped: on Vercel an instance can
+  // be thawed with a dead connection that the driver never revives by itself, so
+  // waiting for it left one instance answering 503 for 25+ minutes in production.
   if (!connecting) {
     connecting = (async () => {
       for (let attempt = 1; ; attempt++) {
