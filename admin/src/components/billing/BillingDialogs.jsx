@@ -35,7 +35,7 @@ export const Modal = ({ title, onClose, children, footer, wide = false }) => {
 
 // Which counter this computer is, and who is at it. Saved on this computer only.
 export const DeskFields = ({ settings, value, onChange }) => {
-  const counters = settings?.counters.filter((c) => c.active) || [];
+  const counters = settings?.counters?.filter((c) => c.active) || [];
   const names = settings?.staff.filter((s) => s.active) || [];
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -7,6 +7,7 @@ import AppContextProvider from "./context/AppContext.jsx";
 import LabContextProvider from "./context/LabContext.jsx";
 import "./index.css";
 import { DialogProvider } from "./components/ui/Dialog.jsx";
+import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 
 // When the backend rejects a logged-in request (expired or invalid token),
 // clear the session and return to the login page.
@@ -33,7 +34,9 @@ axios.interceptors.response.use(
   }
 );
 
+// The outer ErrorBoundary catches anything the per-page one can't (menus, providers)
 createRoot(document.getElementById("root")).render(
+  <ErrorBoundary whole>
   <AdminContextProvider>
     <DoctorContextProvider>
       <LabContextProvider>
@@ -45,4 +48,5 @@ createRoot(document.getElementById("root")).render(
       </LabContextProvider>
     </DoctorContextProvider>
   </AdminContextProvider>
+  </ErrorBoundary>
 );
