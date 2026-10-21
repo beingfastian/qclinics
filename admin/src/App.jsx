@@ -6,6 +6,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { AdminContext } from "./context/AdminContext";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
+import { PageBoundary } from "./components/ErrorBoundary";
 import Dashboard from "./pages/Admin/Dashboard.jsx";
 import AllAppointments from "./pages/Admin/AllAppointments.jsx";
 import AddDoctor from "./pages/Admin/AddDoctor.jsx";
@@ -49,6 +50,7 @@ const App = () => {
             <div className="flex">
               <Sidebar mobileOpen={navOpen} onClose={closeNav} />
               <main className="flex-1 min-w-0">
+              <PageBoundary>
               {aToken && !isOwner ? (
                 // Shared reception login: the front desk only (no doctors' settings,
                 // leave decisions, profit, staff or system settings)
@@ -103,6 +105,7 @@ const App = () => {
                   <Route path="*" element={<Navigate to="/lab" replace />} />
                 </Routes>
               )}
+              </PageBoundary>
               </main>
             </div>
           </div>

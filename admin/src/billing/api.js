@@ -90,7 +90,7 @@ export const useDesk = (active = true) => {
       window.removeEventListener("billing-desk-changed", onChange);
     };
   }, [active]);
-  const counter = settings?.counters.find((c) => c.id === desk.counterId && c.active) || null;
+  const counter = settings?.counters?.find((c) => c.id === desk.counterId && c.active) || null;
   return { settings, desk, counter, ready: Boolean(counter) };
 };
 

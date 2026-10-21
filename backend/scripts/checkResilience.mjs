@@ -56,6 +56,24 @@ const exitCode = await new Promise((resolve) => {
 });
 check("Always-on server: an unreachable database at start still exits (host restarts it)", exitCode === 1, String(exitCode));
 
+// --- Production warnings for risky settings (logged; the server still starts) ---
+const warnings = await new Promise((resolve) => {
+  let output = "";
+  const child = spawn(process.execPath, ["--input-type=module", "-e", 'await import("./expressApp.js"); console.log("STARTED");'], {
+    cwd: backendDir,
+    env: { ...process.env, ...env, VERCEL: "1", VERCEL_ENV: "production", CORS_ORIGINS: "", JWT_SECRET: "short-secret" },
+  });
+  child.stdout.on("data", (d) => (output += d));
+  child.stderr.on("data", (d) => (output += d));
+  setTimeout(() => {
+    child.kill();
+    resolve(output);
+  }, 4000);
+});
+check("Production without CORS_ORIGINS logs a warning", /CORS_ORIGINS is not set/.test(warnings));
+check("Production with a short JWT_SECRET logs a warning", /JWT_SECRET is shorter than 32/.test(warnings));
+check("…and still starts (the live app stays up)", /STARTED/.test(warnings));
+
 // --- Vercel: the instance must stay up ---
 Object.assign(process.env, env, { VERCEL: "1" });
 const exits = [];
@@ -82,6 +100,17 @@ const get = async (p, headers = {}) => {
 try {
   let r = await fetch(base + "/");
   check("Database down: the health check still answers", r.status === 200 && (await r.text()) === "API Working");
+
+  // Security headers (helmet), chosen so lab report previews keep working: the staff
+  // app shows reports from this API in an <iframe>/<img> and opens PDFs in a new tab
+  const h = r.headers;
+  check("Security headers: HTTPS only (HSTS)", /max-age=\d+/.test(h.get("strict-transport-security") || ""), h.get("strict-transport-security"));
+  check("Security headers: no MIME sniffing", h.get("x-content-type-options") === "nosniff");
+  check("Security headers: no referrer leaks", h.get("referrer-policy") === "no-referrer");
+  check("Security headers: the server software isn't advertised", !h.get("x-powered-by"));
+  check("Report previews keep working: may be embedded by the staff app (no X-Frame-Options, no CSP)", !h.get("x-frame-options") && !h.get("content-security-policy"));
+  check("Report previews keep working: images/PDFs may load from the staff app's domain", h.get("cross-origin-resource-policy") === "cross-origin");
+  check("Reports opened in a new tab keep working (no opener policy)", !h.get("cross-origin-opener-policy"));
   r = await get("/api/billing/status");
   check("Database down: billing on/off status still answers (no database needed)", r.status === 200 && r.body?.success === true, JSON.stringify(r.body));
   r = await get("/api/live");
@@ -130,6 +159,27 @@ try {
   check("Connected for the following requests", mongoose.connection.readyState === 1);
   r = await get("/api/admin/appointments?range=today", admin);
   check("Other database routes work too", r.status === 200 && r.body?.success === true);
+
+  // --- Public queue routes: cached a few seconds, open to any website ---
+  const fromSite = { Origin: "https://hospital-site.example" };
+  r = await get("/api/queue/public/board", fromSite);
+  check("Waiting-room board is cached at the edge for 5 s", r.status === 200 && /s-maxage=5/.test(r.headers.get("cache-control") || ""), r.headers.get("cache-control"));
+  check("Public board answers any website (patient site, waiting-room TV)", r.headers.get("access-control-allow-origin") === "*" && !/origin/i.test(r.headers.get("vary") || ""));
+  r = await get("/api/queue/public/token/zzzzzzzz", fromSite);
+  check("Unknown token: 404 and never cached", r.status === 404 && r.headers.get("cache-control") === "no-store");
+  r = await get("/api/admin/dashboard", { ...admin, ...fromSite });
+  check("Private routes still refuse other websites", !r.headers.get("access-control-allow-origin"));
+  let reads = 0;
+  mongoose.set("debug", (collection, method) => { if (collection === "queuetokens" && method === "distinct") reads++; });
+  await new Promise((resolve) => setTimeout(resolve, 3100)); // past the board's 3 s cache
+  await Promise.all(Array.from({ length: 10 }, () => get("/api/queue/public/board")));
+  check("10 screens asking at once share one database read", reads === 1, String(reads));
+  await get("/api/queue/public/board");
+  check("Within 3 s the board is served from memory", reads === 1, String(reads));
+  await new Promise((resolve) => setTimeout(resolve, 3100));
+  await get("/api/queue/public/board");
+  check("After 3 s the board is read again (stays current)", reads === 2, String(reads));
+  mongoose.set("debug", false);
 } catch (error) {
   errorLog("TEST CRASHED:", error);
   failures++;

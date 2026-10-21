@@ -5,6 +5,7 @@
 //     run from a Vercel cron calling /api/cron/reminders)
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import "dotenv/config";
 import connectDB from "./config/mongodb.js";
 import mongoose from "mongoose";
@@ -48,8 +49,14 @@ export const parseOrigins = (value) =>
         : origin
     );
 const allowedOrigins = parseOrigins(process.env.CORS_ORIGINS);
-if (!allowedOrigins.length && (process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production")) {
+const inProduction = process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
+if (!allowedOrigins.length && inProduction) {
   console.warn("WARNING: CORS_ORIGINS is not set, so any website can call this API from a browser. Set it to the staff app's address.");
+}
+// Every login token is signed with JWT_SECRET: a short one can be guessed, and then
+// anyone could make an owner login. A warning, not a stop, so the live app stays up.
+if (inProduction && String(process.env.JWT_SECRET).length < 32) {
+  console.warn("WARNING: JWT_SECRET is shorter than 32 characters. Use a long random value (see .env.example).");
 }
 // maxAge: browsers remember the CORS check ("may I call this API?") for 2 hours
 // instead of sending an extra OPTIONS request before almost every call
@@ -74,7 +81,25 @@ connectCloudinary();
 if (!onVercel) testEmailConnection();
 
 // Middlewares
-app.use(cors(corsOptions));
+// Security headers. This API serves JSON and lab report files that the staff app
+// shows in an <iframe>/<img> and opens in a new tab, so three defaults are relaxed:
+// no CSP (it can break the browser's PDF viewer; the staff app has its own CSP),
+// no X-Frame-Options (the report <iframe>), resources usable cross-origin (the
+// report <img>), and no opener policy (reports opened in a new tab).
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    frameguard: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginOpenerPolicy: false,
+    referrerPolicy: { policy: "no-referrer" },
+  })
+);
+// The public queue routes (waiting-room screen, a patient's token page) answer any
+// website: they need no login, and their responses are cached at the edge for all
+// callers alike. Everything else only answers the origins in CORS_ORIGINS.
+const publicCors = { origin: "*", maxAge: 7200 };
+app.use(cors((req, callback) => callback(null, req.path.startsWith("/api/queue/public/") ? publicCors : corsOptions)));
 // Keep the raw body: webhook signatures (Kapso) are computed over the exact bytes
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: true }));

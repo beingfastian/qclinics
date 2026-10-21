@@ -41,7 +41,7 @@ const DueTab = ({ doctors, onChanged }) => {
     if (!text) return true;
     const digits = text.replace(/\D/g, "");
     return (
-      row.patientName.toLowerCase().includes(text) ||
+      (row.patientName || "").toLowerCase().includes(text) ||
       (digits.length >= 4 && (row.phone || "").replace(/\D/g, "").includes(digits)) ||
       (row.orderNumber && `l-${row.orderNumber}` === text.replace(/\s/g, "")) ||
       (row.tokenNumber && String(row.tokenNumber) === text)
@@ -476,7 +476,7 @@ const Billing = () => {
         />
       </div>
       {tab === "due" && <DueTab doctors={doctors} onChanged={() => setRefreshKey((k) => k + 1)} />}
-      {tab === "receipts" && <ReceiptsTab owner={isOwner} counters={settings?.counters.filter((c) => c.active) || []} refreshKey={refreshKey} />}
+      {tab === "receipts" && <ReceiptsTab owner={isOwner} counters={settings?.counters?.filter((c) => c.active) || []} refreshKey={refreshKey} />}
       {tab === "close" && <CloseTab counter={counter} staffName={desk.staffName} onChangeDesk={() => setDeskOpen(true)} />}
       {deskOpen && <DeskDialog onClose={() => setDeskOpen(false)} />}
     </Page>

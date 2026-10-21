@@ -128,23 +128,47 @@ export const patients = async (req, res) => {
   }
 };
 
-// Public: no login, no patient names. Not cached, so screens always show the latest.
+// Public: no login, no patient names. Waiting-room screens (every 7 s) and patients'
+// phones (every 15 s) poll these, so they are cached for a few seconds:
+//   - at Vercel's edge (s-maxage): most polls never reach the function
+//   - here, for the board: screens asking at the same moment share one database read
+// A few seconds' delay is fine for a queue screen.
+const PUBLIC_CACHE = "public, max-age=5, s-maxage=5, stale-while-revalidate=10";
+const BOARD_TTL_MS = 3000;
+let boardCache = { at: 0, data: null, pending: null };
+export const cachedPublicBoard = () => {
+  if (boardCache.data && Date.now() - boardCache.at < BOARD_TTL_MS) return Promise.resolve(boardCache.data);
+  if (!boardCache.pending) {
+    boardCache.pending = publicBoard()
+      .then((data) => {
+        boardCache = { at: Date.now(), data, pending: null };
+        return data;
+      })
+      .catch((error) => {
+        boardCache.pending = null;
+        throw error;
+      });
+  }
+  return boardCache.pending;
+};
+
 export const board = async (req, res) => {
   try {
-    res.set("Cache-Control", "no-store");
-    res.json({ success: true, board: await publicBoard() });
+    const data = await cachedPublicBoard();
+    res.set("Cache-Control", PUBLIC_CACHE).json({ success: true, board: data });
   } catch (error) {
+    res.set("Cache-Control", "no-store"); // never cache a failure
     fail(res, error);
   }
 };
 
 export const token = async (req, res) => {
   try {
-    res.set("Cache-Control", "no-store");
     const data = await publicToken(req.params.publicId);
-    if (!data) return res.status(404).json({ success: false, message: "Token not found" });
-    res.json({ success: true, token: data });
+    if (!data) return res.set("Cache-Control", "no-store").status(404).json({ success: false, message: "Token not found" });
+    res.set("Cache-Control", PUBLIC_CACHE).json({ success: true, token: data });
   } catch (error) {
+    res.set("Cache-Control", "no-store"); // never cache a failure
     fail(res, error);
   }
 };
