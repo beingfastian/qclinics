@@ -43,14 +43,13 @@ const Billing = lazy(() => import("./pages/Billing.jsx"));
 const Money = lazy(() => import("./pages/Money.jsx"));
 import { PharmacyContext } from "./context/PharmacyContext.jsx";
 import { useAppConfig } from "./appConfig";
-const PharmacyHome = lazy(() => import("./modules/pharmacy/pages/PharmacyHome.jsx"));
-const PharmacyStaff = lazy(() => import("./modules/pharmacy/pages/PharmacyStaff.jsx"));
+import { pharmacyRoutes } from "./modules/pharmacy/routes.jsx";
 
 const App = () => {
   const { aToken, isOwner } = useContext(AdminContext);
   const { dToken } = useContext(DoctorContext);
   const { lToken } = useContext(LabContext);
-  const { pToken } = useContext(PharmacyContext);
+  const { pToken, can } = useContext(PharmacyContext);
   // Hospital or standalone pharmacy, and which modules are on (backend config/modules.js)
   const config = useAppConfig();
   const [navOpen, setNavOpen] = useState(false);
@@ -73,8 +72,7 @@ const App = () => {
               {aToken && standalonePharmacy ? (
                 // A standalone pharmacy: the owner sees only the pharmacy
                 <Routes>
-                  <Route path="/pharmacy" element={<PharmacyHome />} />
-                  <Route path="/pharmacy/staff" element={<PharmacyStaff />} />
+                  {pharmacyRoutes({ owner: true })}
                   <Route path="*" element={<Navigate to="/pharmacy" replace />} />
                 </Routes>
               ) : aToken && !isOwner ? (
@@ -110,8 +108,7 @@ const App = () => {
                   <Route path="/lab-staff" element={<LabStaff />} />
                   <Route path="/billing" element={<Billing />} />
                   <Route path="/money" element={<Money />} />
-                  {pharmacyOn && <Route path="/pharmacy" element={<PharmacyHome />} />}
-                  {pharmacyOn && <Route path="/pharmacy/staff" element={<PharmacyStaff />} />}
+                  {pharmacyOn && pharmacyRoutes({ owner: true })}
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               ) : dToken ? (
@@ -135,7 +132,7 @@ const App = () => {
               ) : (
                 // Pharmacy staff (manager or cashier)
                 <Routes>
-                  <Route path="/pharmacy" element={<PharmacyHome />} />
+                  {pharmacyRoutes({ canManage: can("manageStock") })}
                   <Route path="*" element={<Navigate to="/pharmacy" replace />} />
                 </Routes>
               )}

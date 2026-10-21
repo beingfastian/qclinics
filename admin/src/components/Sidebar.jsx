@@ -27,7 +27,20 @@ import {
   FaCashRegister,
   FaCoins,
   FaPrescriptionBottleAlt,
+  FaPills,
+  FaTruck,
+  FaTruckLoading,
+  FaExclamationTriangle,
 } from "react-icons/fa";
+
+// The pharmacy's pages. perm: only staff whose role has it (the owner sees all)
+const pharmacyItems = [
+  { path: "/pharmacy", icon: <FaPrescriptionBottleAlt />, label: "Pharmacy", end: true },
+  { path: "/pharmacy/items", icon: <FaPills />, label: "Items" },
+  { path: "/pharmacy/stock", icon: <FaExclamationTriangle />, label: "Stock Alerts" },
+  { path: "/pharmacy/purchases", icon: <FaTruckLoading />, label: "Purchases", perm: "manageStock" },
+  { path: "/pharmacy/suppliers", icon: <FaTruck />, label: "Suppliers", perm: "manageStock" },
+];
 
 const adminSections = [
   {
@@ -75,7 +88,7 @@ const adminSections = [
   {
     title: "Pharmacy",
     items: [
-      { path: "/pharmacy", icon: <FaPrescriptionBottleAlt />, label: "Pharmacy", end: true, owner: true, pharmacy: true },
+      ...pharmacyItems.map((item) => ({ ...item, owner: true, pharmacy: true })),
       { path: "/pharmacy/staff", icon: <FaUsersCog />, label: "Pharmacy Staff", owner: true, pharmacy: true },
     ],
   },
@@ -90,7 +103,7 @@ const pharmacyOwnerSections = [
   {
     title: "Pharmacy",
     items: [
-      { path: "/pharmacy", icon: <FaPrescriptionBottleAlt />, label: "Pharmacy", end: true },
+      ...pharmacyItems,
       { path: "/pharmacy/staff", icon: <FaUsersCog />, label: "Pharmacy Staff" },
     ],
   },
@@ -100,7 +113,7 @@ const pharmacyOwnerSections = [
 const pharmacyStaffSections = [
   {
     title: "Pharmacy",
-    items: [{ path: "/pharmacy", icon: <FaPrescriptionBottleAlt />, label: "Pharmacy", end: true }],
+    items: pharmacyItems,
   },
 ];
 
@@ -138,7 +151,7 @@ const Sidebar = ({ mobileOpen, onClose }) => {
   const { aToken, isOwner, leaveStats, getLeaveStats } = useContext(AdminContext);
   const { dToken } = useContext(DoctorContext);
   const { lToken } = useContext(LabContext);
-  const { pToken } = useContext(PharmacyContext);
+  const { pToken, can } = useContext(PharmacyContext);
   const config = useAppConfig() || HOSPITAL_DEFAULT;
   const hospital = config.modules.hospital;
   // Lab and billing exist only in a hospital (and only when turned on there)
@@ -205,7 +218,8 @@ const Sidebar = ({ mobileOpen, onClose }) => {
           (labEnabled || !item.lab) &&
           (billingEnabled || !item.billing) &&
           (config.modules.pharmacy || !item.pharmacy) &&
-          (!item.owner || !aToken || isOwner)
+          (!item.owner || !aToken || isOwner) &&
+          (!item.perm || !pToken || can(item.perm))
       ),
     }))
     .filter((section) => section.items.length);
