@@ -12,6 +12,7 @@ import {
   billingSettingModel,
 } from "../model/billingModel.js";
 import { splitFee } from "./profitService.js";
+import { inTransaction } from "../lib/transactions.js";
 import { hospitalIsoDate, hospitalSlotDate, HOSPITAL_UTC_OFFSET_MINUTES } from "../utils/slots.js";
 
 // Billing at reception. Rules (see docs/BILLING_PLAN.md):
@@ -21,7 +22,7 @@ import { hospitalIsoDate, hospitalSlotDate, HOSPITAL_UTC_OFFSET_MINUTES } from "
 //     counted, so nothing is missed or counted twice when people work at once
 
 // Billing on/off for this hospital (BILLING_ENABLED=false hides it)
-export const billingEnabled = () => process.env.BILLING_ENABLED !== "false";
+export { billingEnabled } from "../config/modules.js";
 
 export class BillingError extends Error {
   constructor(message, code, extra) {
@@ -116,32 +117,8 @@ export const parseRange = (from, to) => {
 // Collecting and refunding write several documents. In a transaction they are saved
 // together or not at all, so a failure halfway (lost connection, crash) can't leave a
 // payment without its receipt number or lab order, or a refunded amount without its
-// refund record (the drawer would no longer add up). Transactions need a replica set:
-// MongoDB Atlas always is one. On a standalone development server the steps run one
-// by one, as before.
-let transactionsSupported = null;
-const supportsTransactions = async () => {
-  if (transactionsSupported === null) {
-    const hello = await mongoose.connection.db.admin().command({ hello: 1 });
-    transactionsSupported = Boolean(hello.setName || hello.msg === "isdbgrid");
-  }
-  return transactionsSupported;
-};
-// work(session) runs inside one transaction (retried by MongoDB on a write conflict,
-// e.g. two receipts taking the next number at the same moment). Its result is returned.
-const inTransaction = async (work) => {
-  if (!(await supportsTransactions())) return work(undefined);
-  const session = await mongoose.startSession();
-  try {
-    let result;
-    await session.withTransaction(async () => {
-      result = await work(session);
-    });
-    return result;
-  } finally {
-    await session.endSession();
-  }
-};
+// refund record (the drawer would no longer add up). See lib/transactions.js
+// (shared with the pharmacy module).
 
 // --- Receipt numbers ---
 
