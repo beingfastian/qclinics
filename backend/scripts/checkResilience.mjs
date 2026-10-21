@@ -157,6 +157,9 @@ try {
   r = await get("/api/admin/dashboard", admin);
   check("Database back: the next request connects and succeeds", r.status === 200 && r.body?.success === true, `${r.status} ${JSON.stringify(r.body)?.slice(0, 120)}`);
   check("Connected for the following requests", mongoose.connection.readyState === 1);
+  const client = mongoose.connection.getClient();
+  check("Vercel: idle pool connections close after 5 s (maxIdleTimeMS)", client.options.maxIdleTimeMS === 5000, String(client.options.maxIdleTimeMS));
+  check("Vercel: the pool is attached with attachDatabasePool", client.listenerCount("connectionCheckedOut") >= 1, String(client.listenerCount("connectionCheckedOut")));
   r = await get("/api/admin/appointments?range=today", admin);
   check("Other database routes work too", r.status === 200 && r.body?.success === true);
 
@@ -172,6 +175,7 @@ try {
   await Promise.all(Array.from({ length: 15 }, () => get("/api/admin/dashboard", admin)));
   check("Many requests while reconnecting don't pile up listeners", mongoose.connection.listenerCount("connected") <= listenersBefore + 1, `${listenersBefore} -> ${mongoose.connection.listenerCount("connected")}`);
   check("Connected again", mongoose.connection.readyState === 1);
+  check("The new client after a reconnect is attached too", mongoose.connection.getClient().listenerCount("connectionCheckedOut") >= 1);
 
   // --- Public queue routes: cached a few seconds, open to any website ---
   const fromSite = { Origin: "https://hospital-site.example" };
