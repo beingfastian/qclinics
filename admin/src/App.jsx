@@ -41,18 +41,28 @@ const LabTests = lazy(() => import("./pages/Lab/LabTests.jsx"));
 const LabStaff = lazy(() => import("./pages/Lab/LabStaff.jsx"));
 const Billing = lazy(() => import("./pages/Billing.jsx"));
 const Money = lazy(() => import("./pages/Money.jsx"));
+import { PharmacyContext } from "./context/PharmacyContext.jsx";
+import { useAppConfig } from "./appConfig";
+const PharmacyHome = lazy(() => import("./modules/pharmacy/pages/PharmacyHome.jsx"));
+const PharmacyStaff = lazy(() => import("./modules/pharmacy/pages/PharmacyStaff.jsx"));
 
 const App = () => {
   const { aToken, isOwner } = useContext(AdminContext);
   const { dToken } = useContext(DoctorContext);
   const { lToken } = useContext(LabContext);
+  const { pToken } = useContext(PharmacyContext);
+  // Hospital or standalone pharmacy, and which modules are on (backend config/modules.js)
+  const config = useAppConfig();
   const [navOpen, setNavOpen] = useState(false);
   const closeNav = useCallback(() => setNavOpen(false), []);
+  if (!config) return <PageLoading />;
+  const standalonePharmacy = config.mode === "pharmacy";
+  const pharmacyOn = config.modules.pharmacy;
   return (
     <BrowserRouter>
       <ToastContainer />
-      {aToken || dToken || lToken ? (
-        <NotificationProvider>
+      {aToken || dToken || lToken || pToken ? (
+        <NotificationProvider enabled={config.modules.hospital && !pToken}>
           <div className="min-h-screen bg-slate-50">
             <Navbar onMenuClick={() => setNavOpen(true)} />
             <div className="flex">
@@ -60,7 +70,14 @@ const App = () => {
               <main className="flex-1 min-w-0">
               <PageBoundary>
               <Suspense fallback={<PageLoading />}>
-              {aToken && !isOwner ? (
+              {aToken && standalonePharmacy ? (
+                // A standalone pharmacy: the owner sees only the pharmacy
+                <Routes>
+                  <Route path="/pharmacy" element={<PharmacyHome />} />
+                  <Route path="/pharmacy/staff" element={<PharmacyStaff />} />
+                  <Route path="*" element={<Navigate to="/pharmacy" replace />} />
+                </Routes>
+              ) : aToken && !isOwner ? (
                 // Shared reception login: the front desk only (no doctors' settings,
                 // leave decisions, profit, staff or system settings)
                 <Routes>
@@ -93,6 +110,8 @@ const App = () => {
                   <Route path="/lab-staff" element={<LabStaff />} />
                   <Route path="/billing" element={<Billing />} />
                   <Route path="/money" element={<Money />} />
+                  {pharmacyOn && <Route path="/pharmacy" element={<PharmacyHome />} />}
+                  {pharmacyOn && <Route path="/pharmacy/staff" element={<PharmacyStaff />} />}
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               ) : dToken ? (
@@ -106,12 +125,18 @@ const App = () => {
                   <Route path="/doctor/lab-reports/:id" element={<LabOrderDetail />} />
                   <Route path="*" element={<Navigate to="/doctor" replace />} />
                 </Routes>
-              ) : (
+              ) : lToken ? (
                 <Routes>
                   <Route path="/lab" element={<LabOrders />} />
                   <Route path="/lab/orders/:id" element={<LabOrderDetail />} />
                   <Route path="/lab/tests" element={<LabTests />} />
                   <Route path="*" element={<Navigate to="/lab" replace />} />
+                </Routes>
+              ) : (
+                // Pharmacy staff (manager or cashier)
+                <Routes>
+                  <Route path="/pharmacy" element={<PharmacyHome />} />
+                  <Route path="*" element={<Navigate to="/pharmacy" replace />} />
                 </Routes>
               )}
               </Suspense>

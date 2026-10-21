@@ -1,4 +1,5 @@
 import axios from "axios";
+import { loadAppConfig } from "../appConfig";
 import { useEffect, useState } from "react";
 
 // Shared helpers for billing (reception and owner). Money records live on the
@@ -60,10 +61,15 @@ let enabledPromise = null;
 export const useBillingEnabled = () => {
   const [enabled, setEnabled] = useState(false);
   useEffect(() => {
-    enabledPromise ??= axios
-      .get(`${backendUrl}/api/billing/status`, { timeout: 10000 })
-      .then((r) => r.data?.enabled === true)
-      .catch(() => false);
+    // The app config says first whether this deployment has billing at all
+    enabledPromise ??= loadAppConfig().then((config) =>
+      !config.modules.billing
+        ? false
+        : axios
+            .get(`${backendUrl}/api/billing/status`, { timeout: 10000 })
+            .then((r) => r.data?.enabled === true)
+            .catch(() => false)
+    );
     let alive = true;
     enabledPromise.then((value) => alive && setEnabled(value));
     return () => {

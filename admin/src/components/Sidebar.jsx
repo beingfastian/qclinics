@@ -3,6 +3,8 @@ import { NavLink, useLocation } from "react-router-dom";
 import { AdminContext } from "../context/AdminContext";
 import { DoctorContext } from "../context/DoctorContext.jsx";
 import { LabContext } from "../context/LabContext.jsx";
+import { PharmacyContext } from "../context/PharmacyContext.jsx";
+import { useAppConfig, HOSPITAL_DEFAULT } from "../appConfig";
 import { useLabEnabled, useLabCounts } from "../lab/api";
 import { useBillingEnabled } from "../billing/api";
 import {
@@ -24,6 +26,7 @@ import {
   FaUsersCog,
   FaCashRegister,
   FaCoins,
+  FaPrescriptionBottleAlt,
 } from "react-icons/fa";
 
 const adminSections = [
@@ -70,8 +73,34 @@ const adminSections = [
     ],
   },
   {
+    title: "Pharmacy",
+    items: [
+      { path: "/pharmacy", icon: <FaPrescriptionBottleAlt />, label: "Pharmacy", end: true, owner: true, pharmacy: true },
+      { path: "/pharmacy/staff", icon: <FaUsersCog />, label: "Pharmacy Staff", owner: true, pharmacy: true },
+    ],
+  },
+  {
     title: "System",
     items: [{ path: "/settings", icon: <FaCog />, label: "Settings", owner: true }],
+  },
+];
+
+// A standalone pharmacy (APP_MODE=pharmacy): the owner sees only the pharmacy
+const pharmacyOwnerSections = [
+  {
+    title: "Pharmacy",
+    items: [
+      { path: "/pharmacy", icon: <FaPrescriptionBottleAlt />, label: "Pharmacy", end: true },
+      { path: "/pharmacy/staff", icon: <FaUsersCog />, label: "Pharmacy Staff" },
+    ],
+  },
+];
+
+// Pharmacy staff (manager or cashier)
+const pharmacyStaffSections = [
+  {
+    title: "Pharmacy",
+    items: [{ path: "/pharmacy", icon: <FaPrescriptionBottleAlt />, label: "Pharmacy", end: true }],
   },
 ];
 
@@ -109,8 +138,12 @@ const Sidebar = ({ mobileOpen, onClose }) => {
   const { aToken, isOwner, leaveStats, getLeaveStats } = useContext(AdminContext);
   const { dToken } = useContext(DoctorContext);
   const { lToken } = useContext(LabContext);
-  const labEnabled = useLabEnabled();
-  const billingEnabled = useBillingEnabled();
+  const { pToken } = useContext(PharmacyContext);
+  const config = useAppConfig() || HOSPITAL_DEFAULT;
+  const hospital = config.modules.hospital;
+  // Lab and billing exist only in a hospital (and only when turned on there)
+  const labEnabled = useLabEnabled() && config.modules.lab;
+  const billingEnabled = useBillingEnabled() && config.modules.billing;
   const labCounts = useLabCounts(labEnabled && Boolean(aToken || dToken || lToken));
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => {
@@ -134,8 +167,8 @@ const Sidebar = ({ mobileOpen, onClose }) => {
 
   // Pending leave count for the badge
   useEffect(() => {
-    if (aToken) getLeaveStats();
-  }, [aToken]);
+    if (aToken && hospital) getLeaveStats();
+  }, [aToken, hospital]);
 
   // Close the mobile drawer after navigating
   useEffect(() => {
@@ -152,11 +185,27 @@ const Sidebar = ({ mobileOpen, onClose }) => {
 
   // Lab / billing items are hidden when the hospital has that module turned off;
   // owner items are hidden for the shared reception login
-  const sections = (aToken ? adminSections : dToken ? doctorSections : lToken ? labSections : [])
+  const sections = (
+    aToken
+      ? hospital
+        ? adminSections
+        : pharmacyOwnerSections
+      : dToken
+        ? doctorSections
+        : lToken
+          ? labSections
+          : pToken
+            ? pharmacyStaffSections
+            : []
+  )
     .map((section) => ({
       ...section,
       items: section.items.filter(
-        (item) => (labEnabled || !item.lab) && (billingEnabled || !item.billing) && (!item.owner || !aToken || isOwner)
+        (item) =>
+          (labEnabled || !item.lab) &&
+          (billingEnabled || !item.billing) &&
+          (config.modules.pharmacy || !item.pharmacy) &&
+          (!item.owner || !aToken || isOwner)
       ),
     }))
     .filter((section) => section.items.length);
