@@ -12,7 +12,15 @@ import { DialogProvider } from "./components/ui/Dialog.jsx";
 // clear the session and return to the login page.
 axios.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    // The server was starting up and couldn't reach the database yet (503
+    // "db_unavailable"): the request never ran, so try it once more after a moment
+    const config = error.config;
+    if (error.response?.status === 503 && error.response.data?.code === "db_unavailable" && config && !config._retried) {
+      config._retried = true;
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      return axios(config);
+    }
     const headers = error.config?.headers;
     const sentToken = headers?.get?.("atoken") || headers?.get?.("dtoken") || headers?.get?.("ltoken");
     if (error.response?.status === 401 && sentToken) {

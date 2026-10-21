@@ -321,6 +321,9 @@ export const collect = async (input, by) => {
   // takes a receipt number, so a refused attempt never leaves a gap in the numbers.
   const day = todayIso();
   const { appointment, ...fields } = base;
+  // The unique indexes are what stop two receipts for one visit. On a new database
+  // they are still being built just after start; wait for them (instant afterwards)
+  await paymentModel.init();
   let payment;
   try {
     payment = await paymentModel.create({

@@ -45,21 +45,31 @@ export const NotificationProvider = ({ children }) => {
 
     fetchNotifications();
 
-    // Live updates where the server supports them (Railway, Render). On Vercel there
-    // is no live connection: stop retrying after a few tries and check every minute.
-    const socket = io(backendUrl, { auth: { token }, reconnectionAttempts: 3 });
-    socket.on("newNotification", (notification) => {
-      setNotifications(prev => [notification, ...prev]);
-      setUnreadCount(prev => prev + 1);
-      toast.info(notification.title);
-    });
+    // Live updates only where the server has them (Railway, Render). The server says
+    // so at /api/live; on Vercel it has none, so we don't try to connect (that only
+    // produced 404s) and check for new notifications every minute instead.
+    let socket = null;
+    let closed = false;
+    axios
+      .get(`${backendUrl}/api/live`, { timeout: 10000 })
+      .then(({ data }) => {
+        if (closed || !data?.live) return;
+        socket = io(backendUrl, { auth: { token }, reconnectionAttempts: 3 });
+        socket.on("newNotification", (notification) => {
+          setNotifications(prev => [notification, ...prev]);
+          setUnreadCount(prev => prev + 1);
+          toast.info(notification.title);
+        });
+      })
+      .catch(() => {}); // unknown: just poll
     const poll = setInterval(() => {
-      if (!socket.connected && document.visibilityState === "visible") fetchNotifications();
+      if (!socket?.connected && document.visibilityState === "visible") fetchNotifications();
     }, 60000);
 
     return () => {
+      closed = true;
       clearInterval(poll);
-      socket.close();
+      socket?.close();
     };
   }, [backendUrl]);
 
