@@ -9,7 +9,8 @@ import helmet from "helmet";
 import "dotenv/config";
 import connectDB from "./config/mongodb.js";
 import mongoose from "mongoose";
-import { runMigrations } from "./config/migrations.js";
+import { ensureMigrations } from "./config/migrations.js";
+import { background } from "./utils/background.js";
 import connectCloudinary from "./config/cloudinary.js";
 import adminRouter from "./routes/adminRoute.js";
 import doctorRouter from "./routes/doctorRoute.js";
@@ -70,7 +71,6 @@ app.set("trust proxy", 1); // correct protocol/host behind Render/Railway/Vercel
 const noLiveUpdates = { to: () => noLiveUpdates, emit: () => false };
 app.set("io", noLiveUpdates);
 
-mongoose.connection.once("connected", () => runMigrations());
 // On an always-on server a database that can't be reached at start is fatal (the
 // host restarts it). On Vercel the instance stays up and later requests retry.
 connectDB().catch(() => {
@@ -111,7 +111,13 @@ app.use(express.urlencoded({ extended: true }));
 const DB_WAIT_MS = Number(process.env.DB_WAIT_MS) || 15000;
 const NO_DATABASE = new Set(["/", "/api/live", "/api/billing/status", "/api/lab/status"]);
 app.use(async (req, res, next) => {
-  if (mongoose.connection.readyState === 1 || NO_DATABASE.has(req.path)) return next();
+  // Startup migrations run (once) from inside a request, under waitUntil on Vercel
+  const migrate = () => background(ensureMigrations().catch(() => {}));
+  if (mongoose.connection.readyState === 1) {
+    migrate();
+    return next();
+  }
+  if (NO_DATABASE.has(req.path)) return next();
   let timer;
   try {
     await Promise.race([
@@ -120,6 +126,7 @@ app.use(async (req, res, next) => {
         timer = setTimeout(() => reject(new Error("timeout")), DB_WAIT_MS);
       }),
     ]);
+    migrate();
     next();
   } catch {
     res.set("Retry-After", "3").status(503).json({

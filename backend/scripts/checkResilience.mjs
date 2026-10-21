@@ -157,6 +157,9 @@ try {
   r = await get("/api/admin/dashboard", admin);
   check("Database back: the next request connects and succeeds", r.status === 200 && r.body?.success === true, `${r.status} ${JSON.stringify(r.body)?.slice(0, 120)}`);
   check("Connected for the following requests", mongoose.connection.readyState === 1);
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  const markers = await mongoose.connection.collection("migrations").find({}).toArray();
+  check("Startup migrations run from the first request (both done)", ["appointment-startAt", "patient-phoneKeys"].every((id) => markers.some((m) => m._id === id)), JSON.stringify(markers.map((m) => m._id)));
   const client = mongoose.connection.getClient();
   check("Vercel: idle pool connections close after 5 s (maxIdleTimeMS)", client.options.maxIdleTimeMS === 5000, String(client.options.maxIdleTimeMS));
   check("Vercel: the pool is attached with attachDatabasePool", client.listenerCount("connectionCheckedOut") >= 1, String(client.listenerCount("connectionCheckedOut")));
