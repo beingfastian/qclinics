@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getUpcomingSlots, toSlotDate } from "../utils/slots";
 
 const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -52,7 +52,7 @@ const SlotPickerDialog = ({ title, subtitle, doctor, confirmVerb, showReason = f
             <p className="text-sm text-gray-500">Loading available times…</p>
           ) : days.length === 0 ? (
             <p className="text-sm text-gray-600">
-              No free slots in the next 60 days. Check the doctor's timings, sitting days and leave.
+              No free slots in the next 60 days. Check the doctor&apos;s timings, sitting days and leave.
             </p>
           ) : (
             <>

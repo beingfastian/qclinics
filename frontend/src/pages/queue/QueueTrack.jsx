@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 import { HOSPITAL_NAME, HOSPITAL_NAME_URDU, HOSPITAL_PHONE } from "../../config";

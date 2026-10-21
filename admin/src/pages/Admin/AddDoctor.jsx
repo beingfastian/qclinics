@@ -1,11 +1,10 @@
-import React, { useContext, useState } from "react";
+import { useContext, useState } from "react";
 import { useDialog } from "../../components/ui/Dialog";
 import ShareField, { isValidPercent } from "../../components/ShareField";
-import { assets } from "../../assets/assets.js";
 import { AdminContext } from "../../context/AdminContext.jsx";
 import { toast } from "react-toastify";
 import axios from "axios";
-import { FaEye, FaEyeSlash, FaWhatsapp, FaUser, FaGraduationCap, FaClock, FaCalendarAlt } from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaWhatsapp, FaUser, FaGraduationCap, FaClock } from "react-icons/fa";
 
 const AddDoctor = () => {
   const { confirm } = useDialog();
@@ -83,7 +82,7 @@ const AddDoctor = () => {
   };
 
   const validateWhatsAppNumber = (number) => {
-    const cleanNumber = number.replace(/[\s\-\(\)]/g, '');
+    const cleanNumber = number.replace(/[\s\-()]/g, '');
     const pakistaniNumberRegex = /^(\+92|92|0)?3[0-9]{9}$/;
     return pakistaniNumberRegex.test(cleanNumber);
   };

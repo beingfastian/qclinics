@@ -1,4 +1,3 @@
-import React from "react";
 
 // Language of the patient's WhatsApp messages. Urdu first: most patients (or the
 // family member whose phone gets the messages) read Urdu more easily than English.
