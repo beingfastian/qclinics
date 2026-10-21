@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { attachDatabasePool } from "@vercel/functions";
 
 // Connection to MongoDB, shared by every request of this process.
 //
@@ -16,6 +17,19 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let announced = false;
 let connecting = null;
+let attachedClient = null;
+
+// On Vercel, idle instances are paused, which killed their open database connections
+// (production: 17 full reconnects in 18 minutes). Vercel's attachDatabasePool keeps an
+// instance alive just long enough after a request for idle pool connections to close
+// cleanly (maxIdleTimeMS) before it is paused. Does nothing outside Vercel.
+const IDLE_MS = 5000;
+const attachPool = () => {
+  const client = mongoose.connection.getClient();
+  if (!process.env.VERCEL || !client || client === attachedClient) return;
+  attachDatabasePool(client);
+  attachedClient = client;
+};
 
 // Resolves when connected; rejects when every try of this round failed. Calling it
 // again after a failure starts a new round (the next request tries again).
@@ -23,6 +37,8 @@ const connectDB = () => {
   if (!announced) {
     announced = true;
     mongoose.connection.on("connected", () => console.log("Database Connected"));
+    // Logged so production logs show how often connections drop
+    mongoose.connection.on("disconnected", () => console.log("Database disconnected"));
   }
   if (mongoose.connection.readyState === 1) return Promise.resolve(mongoose.connection);
   // Not connected: start one connection round that every waiting request shares.
@@ -40,8 +56,9 @@ const connectDB = () => {
             serverSelectionTimeoutMS: serverTimeout(),
             // Each Vercel instance has its own pool; keep it small so a burst of new
             // instances doesn't use up the cluster's connections (free Atlas: 500)
-            ...(process.env.VERCEL && { maxPoolSize: 5 }),
+            ...(process.env.VERCEL && { maxPoolSize: 5, maxIdleTimeMS: IDLE_MS }),
           });
+          attachPool();
           return mongoose.connection;
         } catch (error) {
           console.error(`Database connection failed (try ${attempt} of ${attempts()}):`, error.message);
