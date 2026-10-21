@@ -33,11 +33,24 @@ if (missingEnv.length) {
 }
 
 // Allowed frontend origins, e.g. "https://site.vercel.app,https://admin.vercel.app".
-// When unset (local development) every origin is allowed.
-const allowedOrigins = (process.env.CORS_ORIGINS || "")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+// A "*" inside an entry matches one part of an address, for Vercel preview
+// deployments: "https://hmc-*-myteam.vercel.app". When unset (local development)
+// every origin is allowed; in production that is logged as a warning.
+const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+export const parseOrigins = (value) =>
+  String(value || "")
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/+$/, ""))
+    .filter(Boolean)
+    .map((origin) =>
+      origin.includes("*")
+        ? new RegExp(`^${origin.split("*").map(escapeRegex).join("[a-z0-9-]+")}$`, "i")
+        : origin
+    );
+const allowedOrigins = parseOrigins(process.env.CORS_ORIGINS);
+if (!allowedOrigins.length && (process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production")) {
+  console.warn("WARNING: CORS_ORIGINS is not set, so any website can call this API from a browser. Set it to the staff app's address.");
+}
 // maxAge: browsers remember the CORS check ("may I call this API?") for 2 hours
 // instead of sending an extra OPTIONS request before almost every call
 export const corsOptions = { origin: allowedOrigins.length ? allowedOrigins : "*", maxAge: 7200 };

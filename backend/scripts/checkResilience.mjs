@@ -26,7 +26,7 @@ const env = {
   ADMIN_EMAIL: "admin@hmc.com",
   ADMIN_PASSWORD: "admin-pass-1",
   WHATSAPP_PROVIDER: "none",
-  CORS_ORIGINS: "http://staff.test",
+  CORS_ORIGINS: "http://staff.test/, https://hmc-*-hanzla-iqbals-projects.vercel.app",
   DB_CONNECT_ATTEMPTS: "2",
   DB_SERVER_TIMEOUT_MS: "700",
   DB_WAIT_MS: "4000",
@@ -93,6 +93,26 @@ try {
   });
   check("CORS check answers at once even with the database down", pre.status === 204);
   check("Browsers may remember the CORS check for 2 hours", pre.headers.get("access-control-max-age") === "7200", pre.headers.get("access-control-max-age"));
+
+  // CORS_ORIGINS: exact addresses (a trailing slash is fine) and "*" for preview deployments
+  const allowedFor = async (origin) =>
+    (await fetch(base + "/api/admin/dashboard", {
+      method: "OPTIONS",
+      headers: { Origin: origin, "Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "atoken" },
+    })).headers.get("access-control-allow-origin") === origin;
+  check("CORS: the configured staff app address is allowed", await allowedFor("http://staff.test"));
+  check("CORS: a preview deployment matching the wildcard is allowed", await allowedFor("https://hmc-4xteorkc8-hanzla-iqbals-projects.vercel.app"));
+  const lookalikes = [
+    "https://evil.example",
+    "https://hmc-4xteorkc8-hanzla-iqbals-projects.vercel.app.evil.example",
+    "https://evilhmc-4x-hanzla-iqbals-projects.vercel.app",
+    "https://hmc-a.evil-hanzla-iqbals-projects.vercel.app",
+    "http://hmc-4xteorkc8-hanzla-iqbals-projects.vercel.app",
+    "https://hmc--hanzla-iqbals-projects.vercel.app",
+  ];
+  const leaked = [];
+  for (const origin of lookalikes) if (await allowedFor(origin)) leaked.push(origin);
+  check("CORS: other and lookalike addresses are refused", leaked.length === 0, leaked.join(" "));
 
   r = await get("/api/admin/dashboard", admin);
   check("Database down: a database route gets a clear 503 (not a crash)", r.status === 503 && r.body?.code === "db_unavailable" && /try again/.test(r.body?.message), `${r.status} ${JSON.stringify(r.body)}`);
