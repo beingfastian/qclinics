@@ -64,6 +64,13 @@ const patientPhoneKeys = async () => {
   await done.updateOne({ _id: PHONE_KEYS_MARKER }, { $set: { at: new Date(), updated } }, { upsert: true });
 };
 
+// Run once per process. On Vercel the caller hands this to waitUntil from inside a
+// request: work started outside a request (e.g. on the 'connected' event) is frozen
+// with the instance and may never finish (seen in production: the phone-keys
+// backfill never ran). A failed step is retried by the next new instance.
+let started = null;
+export const ensureMigrations = () => (started ??= runMigrations());
+
 export const runMigrations = async () => {
   for (const [name, step] of [
     ["patient phone index", patientPhoneIndex],
