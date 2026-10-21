@@ -128,7 +128,9 @@ export const CollectDialog = ({ target, doctors = [], print = true, onPaid, onLa
 
   const gross = useMemo(() => {
     if (!due) return 0;
-    if (due.kind === "lab") return prices.reduce((s, p) => s + (Number(p) || 0), 0);
+    // Whole rupees, rounded per test exactly as the server saves them, so the total
+    // shown here is the total on the receipt
+    if (due.kind === "lab") return prices.reduce((s, p) => s + Math.round(Number(p) || 0), 0);
     return due.amount || 0;
   }, [due, prices]);
   const discountRs = Math.max(0, Math.round(Number(discount) || 0));
@@ -248,6 +250,7 @@ export const CollectDialog = ({ target, doctors = [], print = true, onPaid, onLa
                   id={`price-${index}`}
                   type="number"
                   min="0"
+                  step="1"
                   inputMode="numeric"
                   value={prices[index]}
                   onChange={(e) => setPrices(prices.map((p, i) => (i === index ? e.target.value : p)))}
