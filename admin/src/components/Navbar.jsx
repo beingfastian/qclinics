@@ -20,6 +20,8 @@ import { HOSPITAL_NAME, PRODUCT_NAME } from "../config";
 import { AdminContext } from "../context/AdminContext";
 import { DoctorContext } from "../context/DoctorContext";
 import { LabContext } from "../context/LabContext";
+import { PharmacyContext } from "../context/PharmacyContext";
+import { ROLE_LABEL } from "../modules/pharmacy/api";
 import { useNotifications } from "../context/NotificationContext";
 import { Avatar, Menu } from "./ui";
 import BrandLogo from "./ui/BrandLogo";
@@ -54,15 +56,27 @@ const Navbar = ({ onMenuClick }) => {
   const { isOwner, aToken, setAToken } = useContext(AdminContext);
   const { dToken, setDToken, doctorData } = useContext(DoctorContext);
   const { lToken, setLToken, labName } = useContext(LabContext);
+  const { pToken, setPToken, pharmacyUser } = useContext(PharmacyContext);
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const bellButton = useRef(null);
   const panel = useRef(null);
 
-  const role = aToken ? "admin" : dToken ? "doctor" : "lab";
-  const roleLabel = { admin: isOwner ? "Reception / Admin" : "Reception", doctor: "Doctor", lab: "Lab" }[role];
-  const userName = aToken ? (isOwner ? "Administrator" : "Reception") : dToken ? (doctorData?.name ? `Dr. ${doctorData.name}` : "Doctor") : labName || "Lab staff";
+  const role = aToken ? "admin" : dToken ? "doctor" : lToken ? "lab" : "pharmacy";
+  const roleLabel = {
+    admin: isOwner ? "Reception / Admin" : "Reception",
+    doctor: "Doctor",
+    lab: "Lab",
+    pharmacy: ROLE_LABEL[pharmacyUser?.role] || "Pharmacy",
+  }[role];
+  const userName = aToken
+    ? isOwner ? "Administrator" : "Reception"
+    : dToken
+      ? doctorData?.name ? `Dr. ${doctorData.name}` : "Doctor"
+      : lToken
+        ? labName || "Lab staff"
+        : pharmacyUser?.name || "Pharmacy staff";
 
   // Close the notification panel on outside click or Escape
   useEffect(() => {
@@ -96,6 +110,10 @@ const Navbar = ({ onMenuClick }) => {
     if (lToken) {
       setLToken("");
       localStorage.removeItem("lToken");
+    }
+    if (pToken) {
+      setPToken("");
+      localStorage.removeItem("pToken");
     }
     setTimeout(() => navigate("/"), 100);
   };

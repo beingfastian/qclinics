@@ -7,7 +7,8 @@ import { openReport, reportStorageName } from "../services/reportStorage.js";
 import { labOrderModel } from "../model/labModel.js";
 
 // Lab module on/off for this hospital (LAB_ENABLED=false hides it)
-export const labEnabled = () => process.env.LAB_ENABLED !== "false";
+import { labEnabled } from "../config/modules.js";
+export { labEnabled };
 
 export const requireLabEnabled = (req, res, next) =>
   labEnabled() ? next() : res.status(404).json({ success: false, message: "The lab module is turned off" });

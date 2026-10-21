@@ -1,4 +1,5 @@
 import axios from "axios";
+import { loadAppConfig } from "../appConfig";
 import { useEffect, useState } from "react";
 
 // Shared helpers for the lab screens, used by admin, doctor and lab logins.
@@ -64,10 +65,15 @@ let enabledPromise = null;
 export const useLabEnabled = () => {
   const [enabled, setEnabled] = useState(true);
   useEffect(() => {
-    enabledPromise ??= axios
-      .get(`${backendUrl}/api/lab/status`, { timeout: 10000 })
-      .then((r) => r.data?.enabled !== false)
-      .catch(() => true);
+    // The app config says first whether this deployment has a lab at all
+    enabledPromise ??= loadAppConfig().then((config) =>
+      !config.modules.lab
+        ? false
+        : axios
+            .get(`${backendUrl}/api/lab/status`, { timeout: 10000 })
+            .then((r) => r.data?.enabled !== false)
+            .catch(() => true)
+    );
     let alive = true;
     enabledPromise.then((value) => alive && setEnabled(value));
     return () => {

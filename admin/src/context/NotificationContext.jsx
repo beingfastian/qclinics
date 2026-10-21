@@ -17,7 +17,8 @@ const getAuthHeaders = () => {
   return lToken ? { ltoken: lToken } : {};
 };
 
-export const NotificationProvider = ({ children }) => {
+// enabled=false (standalone pharmacy, pharmacy login): no notification requests at all
+export const NotificationProvider = ({ children, enabled = true }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
@@ -41,7 +42,7 @@ export const NotificationProvider = ({ children }) => {
   // Connect with the token; the server puts us in the right room
   useEffect(() => {
     const token = localStorage.getItem("aToken") || localStorage.getItem("dToken") || localStorage.getItem("lToken");
-    if (!token) return;
+    if (!token || !enabled) return;
 
     fetchNotifications();
 
@@ -71,7 +72,7 @@ export const NotificationProvider = ({ children }) => {
       clearInterval(poll);
       socket?.close();
     };
-  }, [backendUrl]);
+  }, [backendUrl, enabled]);
 
   // Mark notification as read
   const markAsRead = async (notificationId) => {

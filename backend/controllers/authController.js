@@ -7,6 +7,8 @@ import { sendOTPEmail } from "../config/nodemailer.js";
 import { labStaffModel } from "../model/labModel.js";
 import { labEnabled } from "./labController.js";
 import { sameSecret } from "../utils/secrets.js";
+import { isHospital, pharmacyEnabled } from "../config/modules.js";
+import { checkPharmacyLogin } from "../modules/pharmacy/index.js";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
@@ -42,6 +44,7 @@ export const login = async (req, res) => {
     // without the owner's pages (profit, doctor shares, refunds, settings)
     const receptionEmail = String(process.env.RECEPTION_EMAIL || "").trim().toLowerCase();
     if (
+      isHospital() &&
       receptionEmail &&
       process.env.RECEPTION_PASSWORD &&
       email.toLowerCase() === receptionEmail &&
@@ -51,8 +54,9 @@ export const login = async (req, res) => {
     }
 
     const doctor =
-      (await doctorModel.findOne({ email })) ||
-      (await doctorModel.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: "i" } }));
+      isHospital() &&
+      ((await doctorModel.findOne({ email })) ||
+        (await doctorModel.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: "i" } })));
     if (doctor && (await bcrypt.compare(password, doctor.password))) {
       return res.json({ success: true, role: "doctor", token: signToken({ id: doctor._id, role: "doctor" }) });
     }
@@ -64,6 +68,16 @@ export const login = async (req, res) => {
           return res.json({ success: false, message: "This lab account is turned off. Please contact the admin." });
         }
         return res.json({ success: true, role: "lab", token: signToken({ id: staff._id, role: "lab" }) });
+      }
+    }
+
+    if (pharmacyEnabled()) {
+      const staff = await checkPharmacyLogin(email, password);
+      if (staff) {
+        if (!staff.active) {
+          return res.json({ success: false, message: "This pharmacy account is turned off. Please contact the owner." });
+        }
+        return res.json({ success: true, role: "pharmacy", token: signToken({ id: staff._id, role: "pharmacy" }) });
       }
     }
 

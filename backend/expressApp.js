@@ -22,6 +22,8 @@ import labRouter from "./routes/labRoute.js";
 import billingRouter from "./routes/billingRoute.js";
 import { testEmailConnection } from "./config/emailService.js";
 import { runReminderCheck } from "./jobs/reminders.js";
+import { appConfig, isHospital, pharmacyEnabled } from "./config/modules.js";
+import { pharmacyRouter } from "./modules/pharmacy/index.js";
 
 export const onVercel = Boolean(process.env.VERCEL);
 
@@ -109,7 +111,7 @@ app.use(express.urlencoded({ extended: true }));
 // unreachable they get a clear 503 the staff app retries, never a crash.
 // Requests that don't need it (health check, on/off status) never wait.
 const DB_WAIT_MS = Number(process.env.DB_WAIT_MS) || 15000;
-const NO_DATABASE = new Set(["/", "/api/live", "/api/billing/status", "/api/lab/status"]);
+const NO_DATABASE = new Set(["/", "/api/live", "/api/app/config", "/api/billing/status", "/api/lab/status", "/api/pharmacy/status"]);
 app.use(async (req, res, next) => {
   // Startup migrations run (once) from inside a request, under waitUntil on Vercel
   const migrate = () => background(ensureMigrations().catch(() => {}));
@@ -145,18 +147,35 @@ app.use(async (req, res, next) => {
 app.get("/api/live", (req, res) => res.json({ success: true, live: !onVercel }));
 
 // Api Endpoints
-app.use("/api/admin", adminRouter);
-app.use("/api/doctor", doctorRouter);
-app.use("/api/whatsapp", whatsappRouter);
-app.use("/api/notifications", notificationRoutes);
+// What this deployment is (hospital or standalone pharmacy) and which modules it
+// runs: the staff app shows its screens and menus by this (config/modules.js)
+app.get("/api/app/config", (req, res) => res.json({ success: true, config: appConfig() }));
+
+// Shared sign-in for every role
 app.use("/api/auth", authRoutes);
-app.use("/api/queue", queueRouter);
-app.use("/api/lab", labRouter);
-app.use("/api/billing", billingRouter);
+
+// The hospital system. A standalone pharmacy doesn't load these routes at all.
+if (isHospital()) {
+  app.use("/api/admin", adminRouter);
+  app.use("/api/doctor", doctorRouter);
+  app.use("/api/whatsapp", whatsappRouter);
+  app.use("/api/notifications", notificationRoutes);
+  app.use("/api/queue", queueRouter);
+  app.use("/api/lab", labRouter);
+  app.use("/api/billing", billingRouter);
+}
+
+// The pharmacy module (modules/pharmacy): standalone, or a hospital's pharmacy
+if (pharmacyEnabled()) {
+  app.use("/api/pharmacy", pharmacyRouter());
+} else {
+  app.get("/api/pharmacy/status", (req, res) => res.json({ success: true, enabled: false }));
+}
 
 // Reminder check for hosts without a background timer (Vercel cron). Vercel sends
 // "Authorization: Bearer <CRON_SECRET>"; nothing runs without a matching secret.
 app.get("/api/cron/reminders", async (req, res) => {
+  if (!isHospital()) return res.status(404).json({ success: false, message: "Not found" });
   const secret = process.env.CRON_SECRET;
   if (!secret || req.headers.authorization !== `Bearer ${secret}`) {
     return res.status(401).json({ success: false, message: "Unauthorized" });

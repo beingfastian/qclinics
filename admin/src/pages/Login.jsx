@@ -7,6 +7,7 @@ import { HOSPITAL_NAME, PRODUCT_TAGLINE } from "../config";
 import { AdminContext } from "../context/AdminContext";
 import { DoctorContext } from "../context/DoctorContext";
 import { LabContext } from "../context/LabContext";
+import { PharmacyContext } from "../context/PharmacyContext";
 import { Button, Field, Input } from "../components/ui";
 
 // One sign-in for admin, doctors and lab staff: the server recognises the email
@@ -22,6 +23,7 @@ const Login = () => {
   const { setAToken, backendUrl } = useContext(AdminContext);
   const { setDToken } = useContext(DoctorContext);
   const { setLToken } = useContext(LabContext);
+  const { setPToken } = useContext(PharmacyContext);
   const navigate = useNavigate();
 
   const onSubmitHandler = async (event) => {
@@ -35,7 +37,7 @@ const Login = () => {
         return;
       }
       // One role at a time: drop any older session first
-      ["aToken", "dToken", "lToken"].forEach((key) => localStorage.removeItem(key));
+      ["aToken", "dToken", "lToken", "pToken"].forEach((key) => localStorage.removeItem(key));
       // Reception uses the admin app (same token header) without the owner's pages
       if (data.role === "admin" || data.role === "reception") {
         localStorage.setItem("aToken", data.token);
@@ -49,6 +51,10 @@ const Login = () => {
         localStorage.setItem("lToken", data.token);
         navigate("/lab");
         setLToken(data.token);
+      } else if (data.role === "pharmacy") {
+        localStorage.setItem("pToken", data.token);
+        navigate("/pharmacy");
+        setPToken(data.token);
       } else {
         setError("This account can't sign in here.");
       }
