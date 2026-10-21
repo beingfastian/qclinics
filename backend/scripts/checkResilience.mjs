@@ -56,6 +56,24 @@ const exitCode = await new Promise((resolve) => {
 });
 check("Always-on server: an unreachable database at start still exits (host restarts it)", exitCode === 1, String(exitCode));
 
+// --- Production warnings for risky settings (logged; the server still starts) ---
+const warnings = await new Promise((resolve) => {
+  let output = "";
+  const child = spawn(process.execPath, ["--input-type=module", "-e", 'await import("./expressApp.js"); console.log("STARTED");'], {
+    cwd: backendDir,
+    env: { ...process.env, ...env, VERCEL: "1", VERCEL_ENV: "production", CORS_ORIGINS: "", JWT_SECRET: "short-secret" },
+  });
+  child.stdout.on("data", (d) => (output += d));
+  child.stderr.on("data", (d) => (output += d));
+  setTimeout(() => {
+    child.kill();
+    resolve(output);
+  }, 4000);
+});
+check("Production without CORS_ORIGINS logs a warning", /CORS_ORIGINS is not set/.test(warnings));
+check("Production with a short JWT_SECRET logs a warning", /JWT_SECRET is shorter than 32/.test(warnings));
+check("…and still starts (the live app stays up)", /STARTED/.test(warnings));
+
 // --- Vercel: the instance must stay up ---
 Object.assign(process.env, env, { VERCEL: "1" });
 const exits = [];

@@ -49,8 +49,14 @@ export const parseOrigins = (value) =>
         : origin
     );
 const allowedOrigins = parseOrigins(process.env.CORS_ORIGINS);
-if (!allowedOrigins.length && (process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production")) {
+const inProduction = process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
+if (!allowedOrigins.length && inProduction) {
   console.warn("WARNING: CORS_ORIGINS is not set, so any website can call this API from a browser. Set it to the staff app's address.");
+}
+// Every login token is signed with JWT_SECRET: a short one can be guessed, and then
+// anyone could make an owner login. A warning, not a stop, so the live app stays up.
+if (inProduction && String(process.env.JWT_SECRET).length < 32) {
+  console.warn("WARNING: JWT_SECRET is shorter than 32 characters. Use a long random value (see .env.example).");
 }
 // maxAge: browsers remember the CORS check ("may I call this API?") for 2 hours
 // instead of sending an extra OPTIONS request before almost every call
