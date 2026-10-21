@@ -4,7 +4,9 @@ import doctorModel from "../model/doctorModel.js";
 import userModel from "../model/userModel.js";
 import crypto from 'crypto';
 import { sendWhatsAppConfirmation, sendWhatsAppReminder, sendWhatsAppText } from "../config/whatsappService.js";
-import { phoneVariants } from "../whatsapp/phone.js";
+import { phoneVariants, normalizePhone } from "../whatsapp/phone.js";
+import { whatsappInboundModel, whatsappCancelPromptModel } from "../model/whatsappStateModel.js";
+import { background } from "../utils/background.js";
 import {
   formatSlotDate as formatDisplayDate,
   formatSlotDateUrdu,
@@ -32,8 +34,15 @@ const COMMANDS = {
   book: ["book", "appointment", "بکنگ", "اپائنٹمنٹ"],
   contact: ["contact", "info", "رابطہ"],
 };
-const commandOf = (text) =>
-  Object.keys(COMMANDS).find((command) => COMMANDS[command].includes(text)) || "help";
+// "cancel", "CANCEL 2", "منسوخ ۲" -> { command, number }. Urdu/Arabic digits count too.
+const toAsciiDigits = (text) => text.replace(/[٠-٩۰-۹]/g, (d) => String(d.charCodeAt(0) & 0xf));
+const parseMessage = (text) => {
+  const match = /^(\S+)(?:\s+(\d{1,2}))?$/.exec(toAsciiDigits(text));
+  const word = match ? match[1] : text;
+  const command = Object.keys(COMMANDS).find((name) => COMMANDS[name].includes(word)) || "help";
+  return { command, number: match?.[2] ? Number(match[2]) : null };
+};
+const CANCEL_PROMPT_MS = 30 * 60 * 1000;
 
 // Optional lines, left out when the hospital hasn't set them
 const optionalLine = (value, label) => (value ? `${label} ${value}\n` : "");
@@ -51,6 +60,11 @@ const TEXT = {
     cancelled: (apt) =>
       `*Appointment Cancelled Successfully ❌*\n\nDetails:\n👨‍⚕️ Dr. ${apt.docData.name}\n📅 ${formatDisplayDate(apt.slotDate)}\n🕐 ${apt.slotTime}\n\n` +
       `To book a new appointment:\n${optionalLine(HOSPITAL_WEBSITE, "🌐 Visit:")}📞 Call: ${HOSPITAL_PHONE}\n\nThank you!`,
+    // Numbered list after CANCEL: nothing is cancelled until the patient picks one
+    cancelChoose: (items) =>
+      `*Which appointment do you want to cancel?*\n\n` +
+      items.map((it, i) => `*${i + 1}.* Dr. ${it.doctor} · ${formatDisplayDate(it.slotDate)} · ${it.slotTime}${it.patient ? ` (${it.patient})` : ""}`).join("\n") +
+      `\n\nReply *CANCEL 1*${items.length > 1 ? " (or another number)" : ""} to cancel it. Nothing is cancelled until you reply.`,
     nothingToCancel: () =>
       `*No Upcoming Appointment Found*\n\nYou don't have any upcoming appointments to cancel.\n\n` +
       `To book a new appointment:\n${optionalLine(HOSPITAL_WEBSITE, "🌐 Visit:")}📞 Call: ${HOSPITAL_PHONE}\n\nReply *HELP* for more options.`,
@@ -67,7 +81,7 @@ const TEXT = {
       (HOSPITAL_EMERGENCY_24_7 ? `\nWe're here 24/7 for emergencies! 🚑` : ""),
     help: () =>
       `*Welcome to ${HOSPITAL_NAME}! 🏥*\n\n*Available Commands:*\n• *STATUS* - Check your appointments\n` +
-      `• *CANCEL* - Cancel your next appointment\n• *BOOK* - Get booking information\n• *CONTACT* - Hospital contact details\n` +
+      `• *CANCEL* - Cancel an appointment\n• *BOOK* - Get booking information\n• *CONTACT* - Hospital contact details\n` +
       `• *HELP* - Show this menu\n\n*Quick Actions:*\n${optionalLine(HOSPITAL_WEBSITE, "🌐 Book Online:")}📞 Call Direct: ${HOSPITAL_PHONE}\n\nHow can we help you today?\n\n_Powered by ${PRODUCT_NAME}_`,
   },
   ur: {
@@ -82,6 +96,10 @@ const TEXT = {
       `*آپ کی اپائنٹمنٹ منسوخ کر دی گئی ہے ❌*\n\n👨‍⚕️ ڈاکٹر ${apt.docData.name}\n` +
       `📅 ${formatSlotDateUrdu(apt.slotDate)}\n🕐 ${formatSlotTimeUrdu(apt.slotTime)}\n\n` +
       `نئی اپائنٹمنٹ کے لیے ${HOSPITAL_PHONE} پر کال کریں۔ شکریہ!`,
+    cancelChoose: (items) =>
+      `*کون سی اپائنٹمنٹ منسوخ کرنی ہے؟*\n\n` +
+      items.map((it, i) => `*${i + 1}.* ڈاکٹر ${it.doctor} · ${formatSlotDateUrdu(it.slotDate)} · ${formatSlotTimeUrdu(it.slotTime)}${it.patient ? ` (${it.patient})` : ""}`).join("\n") +
+      `\n\nمنسوخ کرنے کے لیے *منسوخ 1*${items.length > 1 ? " (یا کوئی اور نمبر)" : ""} لکھ کر بھیجیں۔ جواب دیے بغیر کچھ منسوخ نہیں ہوگا۔`,
     nothingToCancel: () =>
       `*کوئی آنے والی اپائنٹمنٹ نہیں ملی*\n\nمنسوخ کرنے کے لیے آپ کی کوئی آنے والی اپائنٹمنٹ نہیں ہے۔\n\n` +
       `مزید معلومات کے لیے ${HOSPITAL_PHONE} پر کال کریں۔`,
@@ -94,7 +112,7 @@ const TEXT = {
       (HOSPITAL_EMERGENCY_24_7 ? `\n\nایمرجنسی 24 گھنٹے کھلی ہے 🚑` : ""),
     help: () =>
       `*${HOSPITAL_NAME} 🏥*\n\nیہ الفاظ لکھ کر بھیجیں:\n• *حالت* (STATUS) - اپنی اپائنٹمنٹس دیکھیں\n` +
-      `• *منسوخ* (CANCEL) - اگلی اپائنٹمنٹ منسوخ کریں\n• *بکنگ* (BOOK) - اپائنٹمنٹ کی معلومات\n` +
+      `• *منسوخ* (CANCEL) - اپائنٹمنٹ منسوخ کریں\n• *بکنگ* (BOOK) - اپائنٹمنٹ کی معلومات\n` +
       `• *رابطہ* (CONTACT) - ہسپتال کا پتہ اور فون\n\n📞 ${HOSPITAL_PHONE}`,
   },
 };
@@ -127,7 +145,8 @@ const buildBotReply = async (phoneNumber, userMessage) => {
   const lang = patientLanguage(user);
   const t = TEXT[lang];
 
-  switch (commandOf(userMessage)) {
+  const { command, number } = parseMessage(userMessage);
+  switch (command) {
     case "status":
       try {
         const appointments = await appointmentModel
@@ -151,24 +170,45 @@ const buildBotReply = async (phoneNumber, userMessage) => {
 
     case "cancel":
       try {
-        // The patient's next upcoming visit (never one in the past or a no-show)
-        const appointment = await appointmentModel
-          .findOne({
+        // Two steps, so a shared family phone (or a mistyped word) can't cancel the
+        // wrong visit: CANCEL lists the upcoming visits of everyone on this number,
+        // numbered; CANCEL <n> cancels exactly the one that was shown as n.
+        const phoneKey = normalizePhone(phoneNumber);
+        if (number) {
+          const prompt = await whatsappCancelPromptModel.findById(phoneKey).lean();
+          const chosenId = prompt && prompt.expiresAt > new Date() ? prompt.appointmentIds[number - 1] : null;
+          if (chosenId) {
+            const chosen = await appointmentModel.findOne({ _id: chosenId, userId: { $in: userIds } });
+            if (chosen && !chosen.cancelled && !chosen.isCompleted) {
+              await cancelAppointment(chosen._id, { role: "patient", id: chosen.userId }, {
+                reason: "Cancelled by patient on WhatsApp",
+                notifyPatient: false,
+              });
+              await whatsappCancelPromptModel.deleteOne({ _id: phoneKey });
+              return t.cancelled(chosen);
+            }
+          }
+          // No list sent recently, or a number that wasn't on it: show the list (again)
+        }
+        const upcoming = await appointmentModel
+          .find({
             userId: { $in: userIds },
             cancelled: false,
             isCompleted: false,
             status: { $ne: "no_show" },
             startAt: { $gt: new Date() },
           })
-          .sort({ startAt: 1 });
-        if (!appointment) return t.nothingToCancel();
-
-        // Cancel (frees the slot); this reply tells the patient
-        await cancelAppointment(appointment._id, { role: "patient", id: appointment.userId }, {
-          reason: "Cancelled by patient on WhatsApp",
-          notifyPatient: false,
-        });
-        return t.cancelled(appointment);
+          .sort({ startAt: 1 })
+          .limit(5);
+        if (!upcoming.length) return t.nothingToCancel();
+        await whatsappCancelPromptModel.updateOne(
+          { _id: phoneKey },
+          { $set: { appointmentIds: upcoming.map((a) => String(a._id)), expiresAt: new Date(Date.now() + CANCEL_PROMPT_MS) } },
+          { upsert: true }
+        );
+        return t.cancelChoose(
+          upcoming.map((a) => ({ doctor: a.docData?.name, slotDate: a.slotDate, slotTime: a.slotTime, patient: family ? a.userData?.name : "" }))
+        );
       } catch (error) {
         console.error("Error cancelling appointment:", error);
         return t.cancelError();
@@ -190,6 +230,19 @@ const buildBotReply = async (phoneNumber, userMessage) => {
   }
 };
 
+// Each incoming message is answered once: Kapso and Twilio may deliver the same one
+// twice (retries). The first delivery records the message id; later ones are skipped.
+const firstDelivery = async (id) => {
+  if (!id) return true;
+  try {
+    await whatsappInboundModel.create({ _id: String(id), expiresAt: new Date(Date.now() + 7 * 86400000) });
+    return true;
+  } catch (error) {
+    if (error?.code === 11000) return false;
+    throw error;
+  }
+};
+
 const twimlReply = (res, text) => {
   const twiml = new twilio.twiml.MessagingResponse();
   twiml.message(text);
@@ -203,6 +256,10 @@ export const handleWhatsAppWebhook = async (req, res) => {
     const { Body, From } = req.body;
     if (!Body || !From) {
       return res.status(400).send('Invalid request');
+    }
+    if (!(await firstDelivery(req.body.MessageSid && `twilio:${req.body.MessageSid}`))) {
+      res.writeHead(200, { 'Content-Type': 'text/xml' });
+      return res.end(new twilio.twiml.MessagingResponse().toString()); // already answered
     }
     const reply = await buildBotReply(From.replace('whatsapp:', ''), Body.toLowerCase().trim());
     twimlReply(res, reply);
@@ -232,16 +289,22 @@ export const handleKapsoWebhook = async (req, res) => {
 
   if (req.get('X-Webhook-Event') !== 'whatsapp.message.received') return;
   const events = req.body?.batch ? req.body.data || [] : [req.body];
-  for (const event of events) {
-    const message = event?.message;
-    if (message?.type !== 'text' || !message.from || !message.text?.body) continue;
-    try {
-      const reply = await buildBotReply(message.from, message.text.body.toLowerCase().trim());
-      await sendWhatsAppText(message.from, reply);
-    } catch (error) {
-      console.error('Kapso webhook reply failed:', error.message);
-    }
-  }
+  // After the reply above; on Vercel, waitUntil keeps the function running until done
+  background(
+    (async () => {
+      for (const event of events) {
+        const message = event?.message;
+        if (message?.type !== 'text' || !message.from || !message.text?.body) continue;
+        try {
+          if (!(await firstDelivery(message.id && `kapso:${message.id}`))) continue; // already answered
+          const reply = await buildBotReply(message.from, message.text.body.toLowerCase().trim());
+          await sendWhatsAppText(message.from, reply);
+        } catch (error) {
+          console.error('Kapso webhook reply failed:', error.message);
+        }
+      }
+    })()
+  );
 };
 
 // Send WhatsApp reminder

@@ -372,10 +372,65 @@ try {
   const missed = await mk(hospitalSlotDate(new Date(), -2), "10:00 AM", new Date(Date.now() - 2 * 86400e3), "no_show", Date.now());
   const statusReply = await ask("+923005550001", "حالت");
   check("Bot STATUS in Urdu shows the missed visit as missed", statusReply.includes("نہیں آئے") && statusReply.includes("آنے والی"), statusReply.slice(0, 300));
-  const cancelReply = await ask("+923005550001", "منسوخ");
-  check("Bot CANCEL (Urdu keyword) cancels the nearest upcoming visit only",
-    (await appointmentModel.findById(soon._id)).cancelled && !(await appointmentModel.findById(farFuture._id)).cancelled && (await appointmentModel.findById(missed._id)).status === "no_show",
-    cancelReply.slice(0, 200));
+  // CANCEL is two steps: a numbered list first, then "CANCEL <n>" cancels exactly that one
+  const isCancelled = async (apt) => (await appointmentModel.findById(apt._id)).cancelled;
+  let cancelReply = await ask("+923005550001", "منسوخ");
+  check("Bot CANCEL (Urdu keyword) only lists, cancels nothing", !(await isCancelled(soon)) && !(await isCancelled(farFuture)), cancelReply.slice(0, 200));
+  check("The list is numbered soonest first, without the missed visit, and says how to confirm",
+    /\*1\.\*/.test(cancelReply) && /\*2\.\*/.test(cancelReply) && !/\*3\.\*/.test(cancelReply) && cancelReply.includes("منسوخ 1"), cancelReply.slice(0, 300));
+  cancelReply = await ask("+923005550001", "منسوخ ۲"); // Urdu digit 2
+  check("CANCEL 2 (Urdu digit) cancels exactly the second one shown",
+    (await isCancelled(farFuture)) && !(await isCancelled(soon)) && (await appointmentModel.findById(missed._id)).status === "no_show", cancelReply.slice(0, 200));
+  cancelReply = await ask("+923005550001", "cancel 1");
+  check("After cancelling, an old number needs a fresh list (nothing cancelled)", !(await isCancelled(soon)) && /\*1\.\*/.test(cancelReply), cancelReply.slice(0, 200));
+  cancelReply = await ask("+923005550001", "cancel 7");
+  check("A number that wasn't on the list cancels nothing and shows the list again", !(await isCancelled(soon)) && /\*1\.\*/.test(cancelReply));
+  // A family on one phone: each line names the patient, so the right one is cancelled
+  const sibling = await userModel.create({ name: "Bot Sibling", phone: "03005550001", dob: "2010", address: {}, language: "ur" });
+  const siblingVisit = await appointmentModel.create({
+    userId: String(sibling._id), docId, slotDate: hospitalSlotDate(new Date(), 2), slotTime: "11:00 AM", startAt: new Date(Date.now() + 2 * 86400e3),
+    userData: { name: "Bot Sibling" }, docData: { name: "Test Doc" }, amount: 1000, date: Date.now() - 3000, status: "booked",
+  });
+  cancelReply = await ask("+923005550001", "cancel");
+  check("Family phone: the list names each patient", cancelReply.includes("Bot Sibling") && cancelReply.includes("Bot Patient"), cancelReply.slice(0, 300));
+  await ask("+923005550001", "cancel 1"); // the sibling's visit is the soonest
+  check("Family phone: CANCEL 1 cancels the sibling's visit only", (await isCancelled(siblingVisit)) && !(await isCancelled(soon)));
+  // The same message delivered twice (provider retry) is answered once
+  const twilioAsk = async (sid, text) => {
+    let out = "";
+    await handleWhatsAppWebhook({ body: { Body: text, From: "whatsapp:+923005550001", MessageSid: sid } }, { writeHead() {}, end(x) { out = x; }, status() { return this; }, send() {} });
+    return out;
+  };
+  await twilioAsk("SM-dup-1", "cancel");
+  const firstTime = await twilioAsk("SM-dup-2", "cancel 1");
+  const again = await twilioAsk("SM-dup-2", "cancel 1");
+  check("A repeated delivery of the same message is ignored (no second reply)", (await isCancelled(soon)) && /Cancelled|منسوخ کر دی/.test(firstTime) && !/Message>/.test(again), again.slice(0, 120));
+  // Kapso (the WhatsApp provider in use): signed webhook, the same message delivered twice
+  {
+    const crypto = await import("crypto");
+    const { handleKapsoWebhook } = await import("../controllers/whatsappController.js");
+    process.env.KAPSO_WEBHOOK_SECRET = "kapso-test-secret";
+    const deliver = async (id, text) => {
+      const body = { message: { id, type: "text", from: "923007654321", text: { body: text } } };
+      const raw = Buffer.from(JSON.stringify(body));
+      const headers = {
+        "x-webhook-signature": crypto.createHmac("sha256", "kapso-test-secret").update(raw).digest("hex"),
+        "x-webhook-event": "whatsapp.message.received",
+      };
+      let status;
+      await handleKapsoWebhook(
+        { body, rawBody: raw, get: (h) => headers[h.toLowerCase()] },
+        { status(c) { status = c; return this; }, json() { return this; } }
+      );
+      return status;
+    };
+    sent.length = 0;
+    const s1 = await deliver("wamid.DUP1", "contact");
+    const s2 = await deliver("wamid.DUP1", "contact");
+    await wait(400); // replies are sent after the webhook answers
+    const replies = sent.filter((m) => m.to === "923007654321");
+    check("Kapso: a repeated delivery is acknowledged but answered once", s1 === 200 && s2 === 200 && replies.length === 1, `${s1} ${s2} replies=${replies.length}`);
+  }
   const helpEn = await ask("+923007654321", "hello");
   check("Bot replies in English to an English patient", helpEn.includes("Available Commands"));
   const unknown = await ask("+923009999999", "status");
