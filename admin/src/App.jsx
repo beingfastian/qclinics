@@ -1,4 +1,4 @@
-import { useCallback, useContext, useState } from "react";
+import { Suspense, lazy, useCallback, useContext, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import { ToastContainer } from "react-toastify";
@@ -7,32 +7,40 @@ import { AdminContext } from "./context/AdminContext";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import { PageBoundary } from "./components/ErrorBoundary";
-import Dashboard from "./pages/Admin/Dashboard.jsx";
-import AllAppointments from "./pages/Admin/AllAppointments.jsx";
-import AddDoctor from "./pages/Admin/AddDoctor.jsx";
-import ManageDoctors from "./pages/Admin/ManageDoctors.jsx";
-import AddPatient from "./pages/Admin/AddPatient.jsx";
-import ManagePatients from "./pages/Admin/ManagePatients.jsx";
-import Settings from "./pages/Admin/Settings.jsx";
-import BookAppointmentForPatient from "./pages/Admin/BookAppointmentForPatient.jsx";
+
+// Each page's code is loaded when it is first opened, so the app starts with a
+// small download instead of every screen at once.
+const PageLoading = () => (
+  <p className="p-6 text-sm text-slate-500" role="status">
+    Loading…
+  </p>
+);
+const Dashboard = lazy(() => import("./pages/Admin/Dashboard.jsx"));
+const AllAppointments = lazy(() => import("./pages/Admin/AllAppointments.jsx"));
+const AddDoctor = lazy(() => import("./pages/Admin/AddDoctor.jsx"));
+const ManageDoctors = lazy(() => import("./pages/Admin/ManageDoctors.jsx"));
+const AddPatient = lazy(() => import("./pages/Admin/AddPatient.jsx"));
+const ManagePatients = lazy(() => import("./pages/Admin/ManagePatients.jsx"));
+const Settings = lazy(() => import("./pages/Admin/Settings.jsx"));
+const BookAppointmentForPatient = lazy(() => import("./pages/Admin/BookAppointmentForPatient.jsx"));
 import { DoctorContext } from "./context/DoctorContext.jsx";
-import DoctorDashboard from "./pages/Doctor/DoctorDashboard.jsx";
-import DoctorAppointments from "./pages/Doctor/DoctorAppointments.jsx";
-import DoctorProfile from "./pages/Doctor/DoctorProfile.jsx";
-import DoctorLeaveRequest from "./pages/Doctor/DoctorLeaveRequest";
-import AdminLeaveManagement from './pages/Admin/AdminLeaveManagement.jsx';
+const DoctorDashboard = lazy(() => import("./pages/Doctor/DoctorDashboard.jsx"));
+const DoctorAppointments = lazy(() => import("./pages/Doctor/DoctorAppointments.jsx"));
+const DoctorProfile = lazy(() => import("./pages/Doctor/DoctorProfile.jsx"));
+const DoctorLeaveRequest = lazy(() => import("./pages/Doctor/DoctorLeaveRequest"));
+const AdminLeaveManagement = lazy(() => import("./pages/Admin/AdminLeaveManagement.jsx"));
 import { NotificationProvider } from "./context/NotificationContext.jsx";
-import ForgotPassword from "./pages/Doctor/ForgotPassword";
-import VerifyOTP from "./pages/Doctor/VerifyOTP";
-import ResetPassword from "./pages/Doctor/ResetPassword";
-import Queue from "./pages/Queue.jsx";
+const ForgotPassword = lazy(() => import("./pages/Doctor/ForgotPassword"));
+const VerifyOTP = lazy(() => import("./pages/Doctor/VerifyOTP"));
+const ResetPassword = lazy(() => import("./pages/Doctor/ResetPassword"));
+const Queue = lazy(() => import("./pages/Queue.jsx"));
 import { LabContext } from "./context/LabContext.jsx";
-import LabOrders from "./pages/Lab/LabOrders.jsx";
-import LabOrderDetail from "./pages/Lab/LabOrderDetail.jsx";
-import LabTests from "./pages/Lab/LabTests.jsx";
-import LabStaff from "./pages/Lab/LabStaff.jsx";
-import Billing from "./pages/Billing.jsx";
-import Money from "./pages/Money.jsx";
+const LabOrders = lazy(() => import("./pages/Lab/LabOrders.jsx"));
+const LabOrderDetail = lazy(() => import("./pages/Lab/LabOrderDetail.jsx"));
+const LabTests = lazy(() => import("./pages/Lab/LabTests.jsx"));
+const LabStaff = lazy(() => import("./pages/Lab/LabStaff.jsx"));
+const Billing = lazy(() => import("./pages/Billing.jsx"));
+const Money = lazy(() => import("./pages/Money.jsx"));
 
 const App = () => {
   const { aToken, isOwner } = useContext(AdminContext);
@@ -51,6 +59,7 @@ const App = () => {
               <Sidebar mobileOpen={navOpen} onClose={closeNav} />
               <main className="flex-1 min-w-0">
               <PageBoundary>
+              <Suspense fallback={<PageLoading />}>
               {aToken && !isOwner ? (
                 // Shared reception login: the front desk only (no doctors' settings,
                 // leave decisions, profit, staff or system settings)
@@ -105,12 +114,14 @@ const App = () => {
                   <Route path="*" element={<Navigate to="/lab" replace />} />
                 </Routes>
               )}
+              </Suspense>
               </PageBoundary>
               </main>
             </div>
           </div>
         </NotificationProvider>
       ) : (
+        <Suspense fallback={<PageLoading />}>
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -118,6 +129,7 @@ const App = () => {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       )}
     </BrowserRouter>
   );
