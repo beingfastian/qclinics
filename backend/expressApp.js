@@ -38,7 +38,9 @@ const allowedOrigins = (process.env.CORS_ORIGINS || "")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
-export const corsOptions = { origin: allowedOrigins.length ? allowedOrigins : "*" };
+// maxAge: browsers remember the CORS check ("may I call this API?") for 2 hours
+// instead of sending an extra OPTIONS request before almost every call
+export const corsOptions = { origin: allowedOrigins.length ? allowedOrigins : "*", maxAge: 7200 };
 
 const app = express();
 app.set("trust proxy", 1); // correct protocol/host behind Render/Railway/Vercel proxies
@@ -49,7 +51,11 @@ const noLiveUpdates = { to: () => noLiveUpdates, emit: () => false };
 app.set("io", noLiveUpdates);
 
 mongoose.connection.once("connected", () => runMigrations());
-connectDB();
+// On an always-on server a database that can't be reached at start is fatal (the
+// host restarts it). On Vercel the instance stays up and later requests retry.
+connectDB().catch(() => {
+  if (!onVercel) process.exit(1);
+});
 connectCloudinary();
 // On Vercel every cold start would log in to the mail server; it's checked on first send instead
 if (!onVercel) testEmailConnection();
@@ -59,6 +65,39 @@ app.use(cors(corsOptions));
 // Keep the raw body: webhook signatures (Kapso) are computed over the exact bytes
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: true }));
+
+// Requests that need the database wait for it briefly (a new Vercel instance may
+// still be connecting, or retrying after a failed first try). If it stays
+// unreachable they get a clear 503 the staff app retries, never a crash.
+// Requests that don't need it (health check, on/off status) never wait.
+const DB_WAIT_MS = Number(process.env.DB_WAIT_MS) || 15000;
+const NO_DATABASE = new Set(["/", "/api/live", "/api/billing/status", "/api/lab/status"]);
+app.use(async (req, res, next) => {
+  if (mongoose.connection.readyState === 1 || NO_DATABASE.has(req.path)) return next();
+  let timer;
+  try {
+    await Promise.race([
+      connectDB(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("timeout")), DB_WAIT_MS);
+      }),
+    ]);
+    next();
+  } catch {
+    res.set("Retry-After", "3").status(503).json({
+      success: false,
+      code: "db_unavailable",
+      message: "The server is starting up. Please try again in a moment.",
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+});
+
+// Whether live updates (Socket.IO) exist here: only on an always-on server, not on
+// Vercel. The staff app asks once and, without them, refreshes by polling instead
+// of trying to connect (which only produced 404s).
+app.get("/api/live", (req, res) => res.json({ success: true, live: !onVercel }));
 
 // Api Endpoints
 app.use("/api/admin", adminRouter);
