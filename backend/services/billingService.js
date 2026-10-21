@@ -521,7 +521,14 @@ export const closePreview = async (counterId) => {
 // Counts the drawer. Each payment/refund is marked with this close in one atomic
 // step per document, so a payment saved at the same moment either belongs to
 // this close or to the next one, never to both or neither.
-export const closeCounter = async ({ counterId, countedCash, notes, note }, by) => {
+export const closeCounter = async ({ counterId, countedCash, notes, note, requestId }, by) => {
+  // The same request again (double click, retry after a slow network): the close it made
+  const requestKey = requestId ? cleanText(requestId, 80) : undefined;
+  if (requestKey) {
+    const repeat = await cashCloseModel.findOne({ requestId: requestKey }).lean();
+    if (repeat) return repeat;
+  }
+  await cashCloseModel.init(); // the unique request id index exists before the first close
   const counter = await findCounter(counterId);
   if (!validAmount(countedCash) || countedCash === "" || countedCash === null) {
     throw new BillingError("Enter the cash you counted in the drawer");
@@ -579,10 +586,16 @@ export const closeCounter = async ({ counterId, countedCash, notes, note }, by) 
       ...(cleanNotes && Object.keys(cleanNotes).length && { notes: cleanNotes }),
       difference,
       note: text,
+      ...(requestKey && { requestId: requestKey }),
     });
     return close.toObject();
   } catch (error) {
     if (!(error instanceof BillingError)) await undo().catch(() => {});
+    // The same request arrived twice at once: the other one saved the close
+    if (isDuplicate(error) && requestKey) {
+      const repeat = await cashCloseModel.findOne({ requestId: requestKey }).lean();
+      if (repeat) return repeat;
+    }
     throw error;
   }
 };

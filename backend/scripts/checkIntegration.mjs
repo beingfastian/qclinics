@@ -355,6 +355,32 @@ try {
     }
   }
 
+  // "Call next" lock: a slow call whose lock expired must not release the next holder's lock
+  {
+    const { queueDayModel } = await import("../model/queueModel.js");
+    const lockDoc = "lockcheck-doctor";
+    const lockDay = "1_1_2030";
+    let secondHeld = false;
+    let refusedWhileSecondHolds = false;
+    await q.withCallLock(lockDoc, lockDay, async () => {
+      // This call is slow: its lock runs out and another call takes over
+      await queueDayModel.updateOne({ _id: `${lockDoc}_${lockDay}` }, { $set: { callLockUntil: new Date(Date.now() - 1000) } });
+      await q.withCallLock(lockDoc, lockDay, async () => {
+        secondHeld = true;
+      }).catch(() => {});
+      // Simulate the second holder still working: take the lock again and keep it
+      await queueDayModel.updateOne({ _id: `${lockDoc}_${lockDay}` }, { $set: { callLockUntil: new Date(Date.now() + 15000), callLockId: "someone-else" } });
+    });
+    // The slow first call has now finished: the other holder's lock must still be there
+    try {
+      await q.withCallLock(lockDoc, lockDay, async () => {});
+    } catch (error) {
+      refusedWhileSecondHolds = /Someone else is calling/.test(error.message);
+    }
+    const left = await queueDayModel.findById(`${lockDoc}_${lockDay}`).lean();
+    check("Call lock: a slow call doesn't release someone else's lock", secondHeld && refusedWhileSecondHolds && left.callLockId === "someone-else", JSON.stringify(left));
+  }
+
   // Bot: CANCEL picks the next upcoming visit, never a past no-show
   const { handleWhatsAppWebhook } = await import("../controllers/whatsappController.js");
   const ask = async (from, text) => {

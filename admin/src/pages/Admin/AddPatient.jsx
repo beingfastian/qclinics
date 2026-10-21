@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import { useContext, useState } from "react";
 import { useDialog } from "../../components/ui/Dialog";
 import LanguageSelect from "../../components/LanguageSelect";
 import { AdminContext } from "../../context/AdminContext.jsx";

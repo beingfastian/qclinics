@@ -1,11 +1,11 @@
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import { FaCashRegister, FaFlask, FaPrint, FaSearch, FaSyncAlt, FaUndo, FaUserEdit, FaListOl } from "react-icons/fa";
 import { AdminContext } from "../context/AdminContext";
 import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, Page, PageHeader, Segmented, Select, Skeleton, Textarea } from "../components/ui";
 import { CollectDialog, DeskDialog, Modal } from "../components/billing/BillingDialogs";
 import { openPrintWindow, printReceiptSlip } from "../components/PrintSlip";
-import { METHOD_LABEL, billingGet, billingPost, dateTime, errorText, rs, time, useDesk } from "../billing/api";
+import { METHOD_LABEL, billingGet, billingPost, dateTime, errorText, newRequestId, rs, time, useDesk } from "../billing/api";
 
 // Billing at reception: collect what's due, find and reprint receipts, and close
 // (count) this counter's drawer. The owner also refunds from here.
@@ -318,11 +318,13 @@ const CloseTab = ({ counter, staffName, onChangeDesk }) => {
   const hasCount = useNotes || counted !== "";
   const difference = preview && hasCount ? countedValue - preview.expected : null;
 
+  const closeRequestId = useRef(newRequestId());
   const submit = async () => {
     setError("");
     setBusy(true);
     try {
       const data = await billingPost("/close", {
+        requestId: closeRequestId.current, // a double click closes once
         counterId: counter.id,
         countedCash: countedValue,
         ...(useNotes && { notes: Object.fromEntries(Object.entries(notes).filter(([, n]) => Number(n) > 0)) }),
@@ -330,6 +332,7 @@ const CloseTab = ({ counter, staffName, onChangeDesk }) => {
         staffName,
       });
       if (data.success) {
+        closeRequestId.current = newRequestId(); // the next close is a new request
         setDone(data.close);
         setCounted("");
         setNotes({});

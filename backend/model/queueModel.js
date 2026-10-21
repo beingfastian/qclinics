@@ -80,6 +80,7 @@ const queueDaySchema = new mongoose.Schema({
   lastNumber: { type: Number, default: 0 },
   // Short lock while a "call next" runs, so two at once can't both call someone
   callLockUntil: { type: Date },
+  callLockId: { type: String }, // who holds it: only they release it
   paused: { type: Boolean, default: false },
   pauseNote: { type: String, default: "" },
 });

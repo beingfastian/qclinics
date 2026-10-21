@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { AdminContext } from "../context/AdminContext";
 import { DoctorContext } from "../context/DoctorContext.jsx";

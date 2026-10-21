@@ -422,15 +422,18 @@ const findToken = async (docId, tokenId) => {
 };
 
 // One "call next" at a time per doctor (doctor and reception may press it together).
-// The lock expires by itself in case a request dies halfway.
+// The lock expires by itself in case a request dies halfway. Each holder releases only
+// its own lock: if a slow call outlived its 15 s and someone else took the lock, the
+// slow one must not release theirs.
 const CALL_LOCK_MS = 15000;
-const withCallLock = async (docId, day, work) => {
+export const withCallLock = async (docId, day, work) => {
   const now = new Date();
+  const lockId = crypto.randomUUID();
   let locked = null;
   try {
     locked = await queueDayModel.findOneAndUpdate(
       { _id: dayKey(docId, day), $or: [{ callLockUntil: { $exists: false } }, { callLockUntil: { $lt: now } }] },
-      { $set: { callLockUntil: new Date(now.getTime() + CALL_LOCK_MS) }, $setOnInsert: { docId, day } },
+      { $set: { callLockUntil: new Date(now.getTime() + CALL_LOCK_MS), callLockId: lockId }, $setOnInsert: { docId, day } },
       { upsert: true, new: true }
     );
   } catch (error) {
@@ -440,7 +443,7 @@ const withCallLock = async (docId, day, work) => {
   try {
     return await work();
   } finally {
-    await queueDayModel.updateOne({ _id: dayKey(docId, day) }, { $unset: { callLockUntil: 1 } });
+    await queueDayModel.updateOne({ _id: dayKey(docId, day), callLockId: lockId }, { $unset: { callLockUntil: 1, callLockId: 1 } });
   }
 };
 

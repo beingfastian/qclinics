@@ -14,7 +14,25 @@ export class ErrorBoundary extends Component {
     return { error };
   }
 
+  componentDidMount() {
+    this.reloadIfStale = (error) => {
+      // A page's code file from the previous version is gone after a new deploy:
+      // reload once (not in a loop) to get the current version.
+      if (!/dynamically imported module|Importing a module script failed|Loading chunk|error loading dynamically/i.test(String(error?.message))) return false;
+      try {
+        const last = Number(sessionStorage.getItem("staleReloadAt") || 0);
+        if (Date.now() - last < 30000) return false;
+        sessionStorage.setItem("staleReloadAt", String(Date.now()));
+      } catch {
+        return false;
+      }
+      window.location.reload();
+      return true;
+    };
+  }
+
   componentDidCatch(error, info) {
+    if (this.reloadIfStale?.(error)) return;
     console.error("Screen crashed:", error, info?.componentStack);
   }
 

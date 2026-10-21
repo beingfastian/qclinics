@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { FaPrint, FaCheckCircle } from "react-icons/fa";
 import { HOSPITAL_ADDRESS, HOSPITAL_NAME, HOSPITAL_NAME_URDU, HOSPITAL_PHONE } from "../config";

@@ -101,10 +101,13 @@ const cashCloseSchema = new mongoose.Schema({
   notes: { type: Map, of: Number, default: undefined },
   difference: { type: Number, default: 0 }, // counted - expected
   note: { type: String, default: "" },
+  requestId: { type: String }, // from the screen, see the index below
   verifiedAt: { type: Date },
   verifiedBy: { type: byStaffSchema },
 });
 cashCloseSchema.index({ counterId: 1, closedAt: -1 });
+// One close per request id: a double click or a retry doesn't count the drawer twice
+cashCloseSchema.index({ requestId: 1 }, { unique: true, partialFilterExpression: { requestId: { $type: "string" } } });
 cashCloseSchema.index({ closedAt: -1 });
 
 // Receipt numbers per day, given out atomically (the same way queue tokens are)

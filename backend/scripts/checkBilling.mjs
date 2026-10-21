@@ -245,6 +245,18 @@ try {
   r = await call("GET", `/api/billing/close-preview?counterId=${counter1.id}`, desk);
   check("After closing, Counter 1 starts from zero", r.data.preview.expected === 0 && r.data.preview.receipts === 0);
   check("Refunds are counted in that close", (await refundModel.countDocuments({ closeId: String(close1._id) })) === 2);
+  // A double click on "Close counter" (or a retry after a slow network) closes once
+  {
+    const { cashCloseModel } = await import("../model/billingModel.js");
+    const before = await cashCloseModel.countDocuments({ counterId: counter1.id });
+    const same = { counterId: counter1.id, countedCash: 0, staffName: "Ayesha", requestId: "close-req-1" };
+    const [c1, c2] = await Promise.all([call("POST", "/api/billing/close", desk, same), call("POST", "/api/billing/close", desk, same)]);
+    const c3 = await call("POST", "/api/billing/close", desk, same);
+    const ids = [c1, c2, c3].map((x) => x.data.close?._id);
+    check("Close counter: the same request twice at once (and again later) saves one close",
+      c1.data.success && c2.data.success && c3.data.success && new Set(ids).size === 1 && (await cashCloseModel.countDocuments({ counterId: counter1.id })) === before + 1,
+      JSON.stringify([c1.data, c2.data].map((x) => x.message || x.close?._id)));
+  }
   r = await call("POST", `/api/billing/closes/${close1._id}/verify`, desk, {});
   check("Reception can't verify its own close", r.status === 403);
   r = await call("POST", `/api/billing/closes/${close1._id}/verify`, owner, {});
@@ -264,7 +276,8 @@ try {
   check("Imran's split is 30% hospital", imran && imran.hospitalShare + imran.doctorShare === imran.consultation && imran.hospitalShare === Math.round(imran.consultation * 0.3), JSON.stringify(imran));
   check("Imran allowed Rs 500 discount", imran?.discountsAllowed === 500);
   check("Fatima is in the unpaid list", s.unpaid.visits.some((v) => v.patientName === "Fatima"));
-  check("Closes listed with the difference", s.closes.length === 1 && s.closes[0].difference === -200);
+  // Two closes: the short one (-200) and the single close from the double-click check
+  check("Closes listed with the difference", s.closes.length === 2 && s.closes.some((c) => c.difference === -200));
   check("No receipt number gaps", s.receiptGaps.length === 0, JSON.stringify(s.receiptGaps));
   check("Per person totals", s.byStaff.some((p) => p.name === "Ayesha") && s.byStaff.some((p) => p.name === "Bilal"));
 

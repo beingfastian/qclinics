@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { isoToSlotDate, slotDateToIso, toIsoDate } from "../utils/slots";
 
 // Move or cancel all of a doctor's appointments on one day.
@@ -175,7 +175,7 @@ const DayActionsDialog = ({
                   onChange={(e) => setToIso(e.target.value)}
                   className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
                 />
-                <p className="mt-1 text-gray-500">Each patient keeps their time if it's free, otherwise gets the nearest free time.</p>
+                <p className="mt-1 text-gray-500">Each patient keeps their time if it&apos;s free, otherwise gets the nearest free time.</p>
               </div>
             )}
 

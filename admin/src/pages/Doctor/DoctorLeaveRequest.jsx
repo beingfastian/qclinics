@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from "react";
+import { useContext, useState, useEffect } from "react";
 import { useDialog } from "../../components/ui/Dialog";
 import { DoctorContext } from "../../context/DoctorContext";
 import { toast } from "react-toastify";
@@ -8,7 +8,6 @@ const DoctorLeaveRequest = () => {
   const { confirm } = useDialog();
   const { 
     dToken, 
-    backendUrl, 
     leaveRequests, 
     requestLeave, 
     getLeaveRequests, 
@@ -275,7 +274,7 @@ const DoctorLeaveRequest = () => {
               <FaCalendarAlt className="text-gray-400 text-xl" />
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">No leave requests found</h3>
-            <p className="text-gray-500">Click "Request Leave" to submit your first leave request</p>
+            <p className="text-gray-500">Click &quot;Request Leave&quot; to submit your first leave request</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
