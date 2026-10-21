@@ -112,10 +112,41 @@ export const parseRange = (from, to) => {
   return { from: start, to: end, start: dayStart(start), end: dayStart(addDays(end, 1)) };
 };
 
+// --- All-or-nothing saves ---
+// Collecting and refunding write several documents. In a transaction they are saved
+// together or not at all, so a failure halfway (lost connection, crash) can't leave a
+// payment without its receipt number or lab order, or a refunded amount without its
+// refund record (the drawer would no longer add up). Transactions need a replica set:
+// MongoDB Atlas always is one. On a standalone development server the steps run one
+// by one, as before.
+let transactionsSupported = null;
+const supportsTransactions = async () => {
+  if (transactionsSupported === null) {
+    const hello = await mongoose.connection.db.admin().command({ hello: 1 });
+    transactionsSupported = Boolean(hello.setName || hello.msg === "isdbgrid");
+  }
+  return transactionsSupported;
+};
+// work(session) runs inside one transaction (retried by MongoDB on a write conflict,
+// e.g. two receipts taking the next number at the same moment). Its result is returned.
+const inTransaction = async (work) => {
+  if (!(await supportsTransactions())) return work(undefined);
+  const session = await mongoose.startSession();
+  try {
+    let result;
+    await session.withTransaction(async () => {
+      result = await work(session);
+    });
+    return result;
+  } finally {
+    await session.endSession();
+  }
+};
+
 // --- Receipt numbers ---
 
-const nextReceipt = async (day) => {
-  const counter = await receiptCounterModel.findOneAndUpdate({ _id: day }, { $inc: { seq: 1 } }, { new: true, upsert: true });
+const nextReceipt = async (day, session) => {
+  const counter = await receiptCounterModel.findOneAndUpdate({ _id: day }, { $inc: { seq: 1 } }, { new: true, upsert: true, session });
   const [y, m, d] = day.split("-");
   return { seq: counter.seq, receiptNo: `${d}${m}${y.slice(2)}-${String(counter.seq).padStart(4, "0")}` };
 };
@@ -315,31 +346,62 @@ export const collect = async (input, by) => {
   if (discountRs > base.gross) throw new BillingError("The discount can't be more than the amount");
   const discountAllowedBy = discountRs > 0 ? await resolveDiscountDoctor(input.discountAllowedBy) : undefined;
   const net = base.gross - discountRs;
-
-  // Saved first with a temporary number: the unique indexes decide who wins when
-  // two receptionists collect for the same patient at once. Only the winner then
-  // takes a receipt number, so a refused attempt never leaves a gap in the numbers.
   const day = todayIso();
   const { appointment, ...fields } = base;
   // The unique indexes are what stop two receipts for one visit. On a new database
   // they are still being built just after start; wait for them (instant afterwards)
   await paymentModel.init();
+
+  // One transaction: the payment (the unique indexes decide who wins when two
+  // receptionists collect for the same patient at once), its receipt number, the
+  // lower fee after a discount and the lab order's paid mark. A refused or failed
+  // attempt leaves nothing behind, not even a used receipt number.
+  // The payment is saved with a temporary number first, then given the next one.
   let payment;
   try {
-    payment = await paymentModel.create({
-      ...fields,
-      receiptNo: `pending-${new mongoose.Types.ObjectId()}`,
-      day,
-      seq: 0,
-      discount: discountRs,
-      net,
-      ...(discountAllowedBy && { discountAllowedBy, discountReason: cleanText(input.discountReason) }),
-      method,
-      reference: method === "bank_transfer" ? cleanText(input.reference, 80) : "",
-      counterId: counter.id,
-      counterName: counter.name,
-      collectedBy: { role: by.role, name: cleanText(by.name, 40) },
-      ...(requestId && { requestId }),
+    payment = await inTransaction(async (session) => {
+      const [created] = await paymentModel.create(
+        [
+          {
+            ...fields,
+            receiptNo: `pending-${new mongoose.Types.ObjectId()}`,
+            day,
+            seq: 0,
+            discount: discountRs,
+            net,
+            ...(discountAllowedBy && { discountAllowedBy, discountReason: cleanText(input.discountReason) }),
+            method,
+            reference: method === "bank_transfer" ? cleanText(input.reference, 80) : "",
+            counterId: counter.id,
+            counterName: counter.name,
+            collectedBy: { role: by.role, name: cleanText(by.name, 40) },
+            ...(requestId && { requestId }),
+          },
+        ],
+        { session }
+      );
+      const { seq, receiptNo } = await nextReceipt(day, session);
+      const saved = await paymentModel.findByIdAndUpdate(created._id, { $set: { receiptNo, seq } }, { new: true, session });
+
+      // A discount lowers what the visit earned. Only if the fee is still the one we
+      // charged on (nobody changed it meanwhile). A visit already completed keeps its
+      // hospital share percent, recalculated on the lower amount.
+      if (appointment && discountRs > 0) {
+        const share = appointment.share && typeof appointment.share.percent === "number" ? splitFee(net, appointment.share.percent) : null;
+        await appointmentModel.updateOne(
+          { _id: appointment._id, amount: appointment.amount },
+          { $set: { amount: net, finalFee: net, ...(share && { share }) } },
+          { session }
+        );
+      }
+      if (fields.kind === "lab") {
+        await labOrderModel.updateOne(
+          { _id: fields.labOrderId },
+          { $set: { payment: { receiptNo, net, paidAt: saved.collectedAt } } },
+          { session }
+        );
+      }
+      return saved;
     });
   } catch (error) {
     if (!isDuplicate(error)) throw error;
@@ -354,25 +416,6 @@ export const collect = async (input, by) => {
       .lean();
     if (other) throw alreadyPaid(other);
     throw error;
-  }
-  const { seq, receiptNo } = await nextReceipt(day);
-  payment = await paymentModel.findByIdAndUpdate(payment._id, { $set: { receiptNo, seq } }, { new: true });
-
-  // A discount lowers what the visit earned. Only if the fee is still the one we
-  // charged on (nobody changed it meanwhile). A visit already completed keeps its
-  // hospital share percent, recalculated on the lower amount.
-  if (appointment && discountRs > 0) {
-    const share = appointment.share && typeof appointment.share.percent === "number" ? splitFee(net, appointment.share.percent) : null;
-    await appointmentModel.updateOne(
-      { _id: appointment._id, amount: appointment.amount },
-      { $set: { amount: net, finalFee: net, ...(share && { share }) } }
-    );
-  }
-  if (fields.kind === "lab") {
-    await labOrderModel.updateOne(
-      { _id: fields.labOrderId },
-      { $set: { payment: { receiptNo, net, paidAt: payment.collectedAt } } }
-    );
   }
   return { payment: payment.toObject(), repeated: false };
 };
@@ -389,34 +432,50 @@ export const refund = async ({ paymentId, amount, reason, counterId }, by) => {
   if (!payment) throw new BillingError("Receipt not found");
   const counter = await findCounter(counterId || payment.counterId);
 
-  // Only if this doesn't refund more than was paid, even with two refunds at once
-  const updated = await paymentModel.findOneAndUpdate(
-    { _id: payment._id, $expr: { $lte: [{ $add: ["$refunded", rupees] }, "$net"] } },
-    { $inc: { refunded: rupees } },
-    { new: true }
-  );
-  if (!updated) {
-    const left = payment.net - payment.refunded;
-    throw new BillingError(left > 0 ? `At most Rs ${left} can still be refunded` : "This receipt was already refunded in full");
-  }
-  const full = updated.refunded >= updated.net;
-  await paymentModel.updateOne(
-    { _id: updated._id },
-    { $set: { status: full ? "refunded" : "partly_refunded", ...(full && { active: false }) } }
-  );
-  const record = await refundModel.create({
-    paymentId: String(payment._id),
-    receiptNo: payment.receiptNo,
-    amount: rupees,
-    method: payment.method,
-    reason: text,
-    counterId: counter.id,
-    counterName: counter.name,
-    by: { role: by.role, name: cleanText(by.name, 40) },
+  // One transaction: the refunded amount, the receipt's status, the refund record
+  // (which the counter close counts) and, after a full lab refund, the lab order back
+  // to unpaid. A failure halfway leaves the receipt as it was.
+  const { record, updated, full } = await inTransaction(async (session) => {
+    // Only if this doesn't refund more than was paid, even with two refunds at once
+    const updated = await paymentModel.findOneAndUpdate(
+      { _id: payment._id, $expr: { $lte: [{ $add: ["$refunded", rupees] }, "$net"] } },
+      { $inc: { refunded: rupees } },
+      { new: true, session }
+    );
+    if (!updated) {
+      const left = payment.net - payment.refunded;
+      throw new BillingError(left > 0 ? `At most Rs ${left} can still be refunded` : "This receipt was already refunded in full");
+    }
+    const full = updated.refunded >= updated.net;
+    await paymentModel.updateOne(
+      { _id: updated._id },
+      { $set: { status: full ? "refunded" : "partly_refunded", ...(full && { active: false }) } },
+      { session }
+    );
+    const [record] = await refundModel.create(
+      [
+        {
+          paymentId: String(payment._id),
+          receiptNo: payment.receiptNo,
+          amount: rupees,
+          method: payment.method,
+          reason: text,
+          counterId: counter.id,
+          counterName: counter.name,
+          by: { role: by.role, name: cleanText(by.name, 40) },
+        },
+      ],
+      { session }
+    );
+    if (full && payment.kind === "lab") {
+      await labOrderModel.updateOne(
+        { _id: payment.labOrderId, "payment.receiptNo": payment.receiptNo },
+        { $unset: { payment: 1 } },
+        { session }
+      );
+    }
+    return { record, updated, full };
   });
-  if (full && payment.kind === "lab") {
-    await labOrderModel.updateOne({ _id: payment.labOrderId, "payment.receiptNo": payment.receiptNo }, { $unset: { payment: 1 } });
-  }
   return { refund: record.toObject(), payment: { ...updated.toObject(), status: full ? "refunded" : "partly_refunded", active: !full } };
 };
 
