@@ -7,6 +7,7 @@ import { FaChevronRight, FaEllipsisV, FaSpinner } from "react-icons/fa";
 
 export { default as Avatar } from "./Avatar";
 export { DialogProvider, useDialog } from "./Dialog";
+export { default as Modal } from "./Modal";
 
 const cx = (...parts) => parts.filter(Boolean).join(" ");
 

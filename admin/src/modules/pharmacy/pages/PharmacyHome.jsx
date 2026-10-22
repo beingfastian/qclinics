@@ -46,7 +46,7 @@ const PharmacyHome = () => {
             </li>
           ))}
         </ul>
-        <p className="mt-4 text-sm text-slate-500">Medicines, purchases, the sales counter and reports are being added next.</p>
+        <p className="mt-4 text-sm text-slate-500">The sales counter and reports are being added next.</p>
       </Card>
     </div>
   );
