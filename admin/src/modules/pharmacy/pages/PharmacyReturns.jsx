@@ -24,7 +24,7 @@ const PharmacyReturns = () => {
 
   const saved = (ret) => {
     setDone(ret);
-    toast.success(`Refund ${money(ret.totalRefundPaisa)}`);
+    toast.success(ret.refundTo === "account" ? `${money(ret.totalRefundPaisa)} taken off the khata` : `Refund ${money(ret.totalRefundPaisa)}`);
   };
   const failed = (e) => {
     if (e?.response?.data?.code === "no_shift") setNoShift(true);
@@ -42,7 +42,10 @@ const PharmacyReturns = () => {
       {done ? (
         <Card className="max-w-md">
           <p className="text-lg font-semibold text-slate-900">Return {done.returnNo} saved</p>
-          <p className="mt-1 text-3xl font-bold text-emerald-700" data-testid="refund-amount">Give back {money(done.totalRefundPaisa)}</p>
+          <p className="mt-1 text-3xl font-bold text-emerald-700" data-testid="refund-amount">
+            {done.refundTo === "account" ? `${money(done.totalRefundPaisa)} off the khata` : `Give back ${money(done.totalRefundPaisa)}`}
+          </p>
+          {done.refundTo === "account" && <p className="mt-1 text-sm text-slate-600">The bill was on khata, so no cash is given back.</p>}
           <div className="mt-4 flex gap-2">
             <Button onClick={() => printReturnReceipt(done, shopName) || toast.error("Allow pop-ups for this site to print")}>Print slip</Button>
             <Button variant="primary" onClick={() => setDone(null)}>Next return</Button>

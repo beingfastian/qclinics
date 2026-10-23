@@ -8,7 +8,7 @@ import { pharmacyGet, errorText, money, stockText } from "../api";
 import { printSaleReceipt, shopNameOf } from "../receipt";
 import { usePharmacyAccess } from "../useAccess";
 
-const METHOD = { cash: "Cash", card: "Card", online: "Online" };
+const METHOD = { cash: "Cash", card: "Card", online: "Online", account: "Paid now" };
 
 // One bill: lines, payment, what was returned; print it again or take a return
 const PharmacySale = () => {
@@ -75,6 +75,12 @@ const PharmacySale = () => {
           <div className="flex justify-between text-base"><dt className="font-medium">Total</dt><dd className="font-semibold">{money(sale.totalPaisa)}</dd></div>
           <div className="flex justify-between"><dt className="text-slate-600">{METHOD[sale.paymentMethod]}</dt><dd>{money(sale.cashReceivedPaisa)}</dd></div>
           {sale.changePaisa > 0 && <div className="flex justify-between"><dt className="text-slate-600">Change</dt><dd>{money(sale.changePaisa)}</dd></div>}
+          {sale.onAccountPaisa > 0 && (
+            <div className="flex justify-between">
+              <dt className="text-slate-600">On khata{sale.customerId && <> (<Link to={`/pharmacy/customers/${sale.customerId}`} className="text-primary-700 underline">{sale.customerName}</Link>)</>}</dt>
+              <dd className="font-semibold">{money(sale.onAccountPaisa)}</dd>
+            </div>
+          )}
           {sale.refundedPaisa > 0 && <div className="flex justify-between"><dt className="text-slate-600">Refunded</dt><dd>- {money(sale.refundedPaisa)}</dd></div>}
           {sale.costPaisa !== undefined && <div className="flex justify-between"><dt className="text-slate-600">Cost</dt><dd>{money(sale.costPaisa)}</dd></div>}
         </dl>

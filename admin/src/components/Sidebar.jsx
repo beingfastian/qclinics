@@ -35,6 +35,8 @@ import {
   FaClock,
   FaChartLine,
   FaHistory,
+  FaAddressBook,
+  FaBarcode,
 } from "react-icons/fa";
 
 // The pharmacy's pages. perm: only staff whose role has it (the owner sees all)
@@ -43,10 +45,12 @@ const pharmacyItems = [
   { path: "/pharmacy/counter", icon: <FaCashRegister />, label: "Counter" },
   { path: "/pharmacy/returns", icon: <FaUndo />, label: "Returns" },
   { path: "/pharmacy/shift", icon: <FaClock />, label: "My Shift" },
+  { path: "/pharmacy/customers", icon: <FaAddressBook />, label: "Customers" },
   { path: "/pharmacy/items", icon: <FaPills />, label: "Items" },
   { path: "/pharmacy/stock", icon: <FaExclamationTriangle />, label: "Stock Alerts" },
   { path: "/pharmacy/purchases", icon: <FaTruckLoading />, label: "Purchases", perm: "manageStock" },
   { path: "/pharmacy/suppliers", icon: <FaTruck />, label: "Suppliers", perm: "manageStock" },
+  { path: "/pharmacy/labels", icon: <FaBarcode />, label: "Labels", perm: "manageStock" },
   { path: "/pharmacy/reports", icon: <FaChartLine />, label: "Reports", perm: "viewReports" },
   { path: "/pharmacy/shifts", icon: <FaHistory />, label: "Shifts", perm: "viewReports" },
 ];
