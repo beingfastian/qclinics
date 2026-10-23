@@ -15,6 +15,7 @@ import { permissionsOf } from "./permissions.js";
 import * as staff from "./services/staffService.js";
 import { createStaffSchema, updateStaffSchema, idParam } from "./validation.js";
 import { mountStockRoutes } from "./routes/stockRoutes.js";
+import { mountSalesRoutes } from "./routes/salesRoutes.js";
 
 export const pharmacyRouter = () => {
   const router = express.Router();
@@ -46,6 +47,9 @@ export const pharmacyRouter = () => {
 
   // Items, suppliers, purchases, stock
   mountStockRoutes(router);
+
+  // The counter: shifts, sales, held bills, returns
+  mountSalesRoutes(router);
 
   return router;
 };

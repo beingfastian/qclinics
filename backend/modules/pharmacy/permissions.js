@@ -4,7 +4,8 @@
 //   manager  runs the pharmacy: medicines and prices, purchases, suppliers, stock
 //            corrections, profit and reports, returns without a bill, selling
 //            stock that isn't entered yet (logged), and selling at the counter
-//   cashier  sells at the counter: their own shift, held bills, returns with a bill
+//   cashier  sells at the counter: their own shift, held bills, returns with a bill,
+//            discounts up to PHARMACY_MAX_DISCOUNT_PERCENT (default 10%)
 export const ROLES = ["manager", "cashier"];
 
 export const PERMISSIONS = {
@@ -13,6 +14,7 @@ export const PERMISSIONS = {
   returnWithoutBill: ["manager"],
   manageStock: ["manager"],
   overrideNegativeStock: ["manager"],
+  giveAnyDiscount: ["manager"],
   viewProfit: ["manager"],
   viewReports: ["manager"],
 };

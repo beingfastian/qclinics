@@ -142,3 +142,48 @@ export const adjustSchema = z.object({
 });
 export const expiringSchema = z.object({ days: z.coerce.number().int().min(1).max(730).default(90) });
 export const movementListSchema = z.object({ productId: objectId, limit: limitQuery, cursor: z.string().max(100).optional() });
+
+// --- The counter: shifts, sales, held bills, returns ---
+const qty = z.number({ invalid_type_error: "Enter a quantity" }).int("Whole units only").min(1, "At least 1").max(100_000);
+const cartItems = z.array(z.object({ productId: objectId, qtyUnits: qty })).min(1, "The bill is empty").max(200);
+const requestId = z.string().trim().min(8).max(80).optional();
+
+export const openShiftSchema = z.object({ openingCashPaisa: paisa });
+export const closeShiftSchema = z.object({ countedCashPaisa: paisa, note: text(300).default("") });
+export const shiftListSchema = z.object({ limit: limitQuery, cursor: z.string().max(100).optional() });
+
+export const createSaleSchema = z.object({
+  items: cartItems,
+  discountPaisa: paisa.default(0),
+  paymentMethod: z.enum(["cash", "card", "online"]).default("cash"),
+  cashReceivedPaisa: paisa.optional(),
+  expectedTotalPaisa: paisa.optional(),
+  customerName: text(80).default(""),
+  customerPhone: text(30).default(""),
+  allowNegative: z.boolean().default(false),
+  managerApproval: z.object({ email: z.string().trim().max(120), password: z.string().max(100) }).optional(),
+  requestId,
+});
+export const saleListSchema = z.object({ shiftId: objectId.optional(), limit: limitQuery, cursor: z.string().max(100).optional() });
+export const saleNoParam = z.object({ no: z.coerce.number().int().min(1).max(1e9) });
+
+export const holdBillSchema = z.object({ label: text(60).default(""), items: cartItems });
+
+export const createReturnSchema = z
+  .object({
+    saleId: objectId.optional(),
+    items: z
+      .array(
+        z.object({
+          saleItemId: objectId.optional(),
+          productId: objectId.optional(),
+          qtyUnits: qty,
+          refundPaisa: paisa.optional(),
+        })
+      )
+      .min(1, "Choose what is returned")
+      .max(200),
+    reason: text(200).default(""),
+    requestId,
+  })
+  .refine((r) => r.items.every((i) => (r.saleId ? i.saleItemId : i.productId)), "Each line needs the bill line (with a bill) or the item (without)");

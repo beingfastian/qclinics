@@ -153,3 +153,57 @@ export const adjustBatch = async ({ batchId, deltaUnits, type, reason, by }, ses
   await productModel.updateOne({ _id: batch.productId }, { $inc: { stockUnits: deltaUnits } }, { session });
   return movement;
 };
+
+// --- Back in: a returned item ---
+// To the batch it was sold from when known; a unit sold beyond the stock (manager
+// override) comes back the same way it went out (no batch). Without a bill the
+// stock goes to the item's batch that expires last, or a new batch if it has none.
+export const putBack = async ({ product, batchId, units, costPerUnitPaisa, negativeOverride, ref, by }, session) => {
+  let toBatch = batchId || null;
+  let cost = costPerUnitPaisa;
+  if (!toBatch && !negativeOverride) {
+    const latest = await batchModel.findOne({ productId: String(product._id) }).sort({ expiry: -1, createdAt: -1 }).session(session || null).lean();
+    if (latest) {
+      toBatch = String(latest._id);
+      cost ??= latest.costPerUnitPaisa;
+    } else {
+      cost ??= product.lastCostPerUnitPaisa || 0;
+      const [batch] = await batchModel.create(
+        [{ productId: String(product._id), batchNo: "Returned", costPerUnitPaisa: cost, receivedUnits: 0, qtyUnits: 0 }],
+        { session }
+      );
+      toBatch = String(batch._id);
+    }
+  }
+  if (toBatch) await batchModel.updateOne({ _id: toBatch }, { $inc: { qtyUnits: units } }, { session });
+  await movementModel.create(
+    [
+      {
+        productId: String(product._id),
+        ...(toBatch && { batchId: toBatch }),
+        type: "sale_return",
+        qtyUnits: units,
+        costPerUnitPaisa: cost || 0,
+        ref,
+        by,
+        ...(!toBatch && { negativeOverride: true }),
+      },
+    ],
+    { session }
+  );
+  await productModel.updateOne({ _id: product._id }, { $inc: { stockUnits: units } }, { session });
+  return { batchId: toBatch, costPerUnitPaisa: cost || 0 };
+};
+
+// --- Development databases without transactions only ---
+// A sale or return that failed halfway is undone by hand: stock taken or put back
+// for it is reversed and its movements removed (with transactions, MongoDB undoes
+// it all and this is never needed).
+export const undoStock = async (refId) => {
+  const moves = await movementModel.find({ "ref.id": String(refId) }).lean();
+  for (const m of moves) {
+    if (m.batchId) await batchModel.updateOne({ _id: m.batchId }, { $inc: { qtyUnits: -m.qtyUnits } });
+    await productModel.updateOne({ _id: m.productId }, { $inc: { stockUnits: -m.qtyUnits } });
+  }
+  await movementModel.deleteMany({ "ref.id": String(refId) });
+};
