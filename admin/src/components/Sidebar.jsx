@@ -37,7 +37,9 @@ import {
   FaHistory,
   FaAddressBook,
   FaBarcode,
+  FaFilePrescription,
 } from "react-icons/fa";
+import { usePrescriptionCount } from "../modules/pharmacy/api";
 
 // The pharmacy's pages. perm: only staff whose role has it (the owner sees all)
 const pharmacyItems = [
@@ -46,6 +48,7 @@ const pharmacyItems = [
   { path: "/pharmacy/returns", icon: <FaUndo />, label: "Returns" },
   { path: "/pharmacy/shift", icon: <FaClock />, label: "My Shift" },
   { path: "/pharmacy/customers", icon: <FaAddressBook />, label: "Customers" },
+  { path: "/pharmacy/prescriptions", icon: <FaFilePrescription />, label: "Prescriptions", badge: "rxOpen", hospitalOnly: true },
   { path: "/pharmacy/items", icon: <FaPills />, label: "Items" },
   { path: "/pharmacy/stock", icon: <FaExclamationTriangle />, label: "Stock Alerts" },
   { path: "/pharmacy/purchases", icon: <FaTruckLoading />, label: "Purchases", perm: "manageStock" },
@@ -66,6 +69,7 @@ const adminSections = [
       { path: "/queue", icon: <FaListOl />, label: "Live Queue" },
       { path: "/all-appointments", icon: <FaCalendarAlt />, label: "All Appointments" },
       { path: "/book-appointment", icon: <FaUserPlus />, label: "Book Appointment" },
+      { path: "/prescriptions", icon: <FaFilePrescription />, label: "Prescriptions" },
     ],
   },
   {
@@ -140,6 +144,7 @@ const doctorSections = [
     items: [
       { path: "/doctor/queue", icon: <FaListOl />, label: "Live Queue" },
       { path: "/doctor/appointments", icon: <FaCalendarAlt />, label: "Appointments" },
+      { path: "/doctor/prescriptions", icon: <FaFilePrescription />, label: "Prescriptions" },
       { path: "/doctor/lab-reports", icon: <FaFlask />, label: "Lab Reports", badge: "labReview", lab: true },
       { path: "/doctor/leave-requests", icon: <FaCalendarCheck />, label: "Leave Requests" },
       { path: "/doctor/profile", icon: <FaUserMd />, label: "Profile" },
@@ -171,6 +176,8 @@ const Sidebar = ({ mobileOpen, onClose }) => {
   const labEnabled = useLabEnabled() && config.modules.lab;
   const billingEnabled = useBillingEnabled() && config.modules.billing;
   const labCounts = useLabCounts(labEnabled && Boolean(aToken || dToken || lToken));
+  // Prescriptions waiting at a hospital's pharmacy
+  const rxOpen = usePrescriptionCount(Boolean(hospital && config.modules.pharmacy && (pToken || (aToken && isOwner))));
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -231,6 +238,7 @@ const Sidebar = ({ mobileOpen, onClose }) => {
           (labEnabled || !item.lab) &&
           (billingEnabled || !item.billing) &&
           (config.modules.pharmacy || !item.pharmacy) &&
+          (hospital || !item.hospitalOnly) &&
           (!item.owner || !aToken || isOwner) &&
           (!item.perm || !pToken || can(item.perm))
       ),
@@ -240,6 +248,7 @@ const Sidebar = ({ mobileOpen, onClose }) => {
     pendingLeave: leaveStats?.pending || 0,
     labOpen: labCounts.open || 0,
     labReview: labCounts.toReview || 0,
+    rxOpen,
   };
 
   // The drawer on mobile is always shown expanded

@@ -1,8 +1,9 @@
 import { useContext, useEffect, useState } from "react";
-import { FaWhatsapp, FaEnvelope, FaSearch, FaCalendarPlus, FaExchangeAlt, FaCalendarDay, FaUserSlash, FaFlask, FaCheck, FaTimes } from "react-icons/fa";
+import { FaWhatsapp, FaEnvelope, FaSearch, FaCalendarPlus, FaExchangeAlt, FaCalendarDay, FaUserSlash, FaFlask, FaCheck, FaTimes, FaPrescriptionBottleAlt } from "react-icons/fa";
 import { DoctorContext } from "../../context/DoctorContext";
 import { AppContext } from "../../context/AppContext";
 import LabOrderModal from "../../components/LabOrderModal";
+import PrescriptionModal from "../../components/PrescriptionModal";
 import { useLabEnabled } from "../../lab/api";
 import FollowUpModal from "../../components/FollowUpModal";
 import { DoctorRescheduleModal } from "../../components/RescheduleModal";
@@ -38,6 +39,7 @@ const DoctorAppointments = () => {
   const [filterStatus, setFilterStatus] = useState("all");
   const [followUpFor, setFollowUpFor] = useState(null);
   const [labFor, setLabFor] = useState(null);
+  const [rxFor, setRxFor] = useState(null);
   const [rescheduleFor, setRescheduleFor] = useState(null);
   const [showDayActions, setShowDayActions] = useState(false);
 
@@ -89,6 +91,7 @@ const DoctorAppointments = () => {
         ? { key: "followup", label: "Follow-up", icon: <FaCalendarPlus />, onClick: () => setFollowUpFor(item) }
         : null;
     const items = [
+      { label: "Write prescription", icon: <FaPrescriptionBottleAlt />, onClick: () => setRxFor(item), hidden: item.cancelled },
       { label: "Request lab tests", icon: <FaFlask />, onClick: () => setLabFor(item), hidden: !labEnabled || item.cancelled },
       { label: "Schedule follow-up", icon: <FaCalendarPlus />, onClick: () => setFollowUpFor(item), hidden: item.cancelled || primary?.key === "followup" },
       { label: "Reschedule", icon: <FaExchangeAlt />, onClick: () => setRescheduleFor(item), hidden: !active || item.type === "walk_in" },
@@ -267,6 +270,7 @@ const DoctorAppointments = () => {
 
       {followUpFor && <FollowUpModal appointment={followUpFor} onClose={() => setFollowUpFor(null)} />}
       {labFor && <LabOrderModal source={{ appointmentId: labFor._id }} patientName={labFor.userData?.name} onClose={() => setLabFor(null)} />}
+      {rxFor && <PrescriptionModal source={{ appointmentId: rxFor._id }} patientName={rxFor.userData?.name} onClose={() => setRxFor(null)} />}
       {rescheduleFor && <DoctorRescheduleModal appointment={rescheduleFor} onClose={() => setRescheduleFor(null)} />}
       {showDayActions && (
         <DayActionsDialog

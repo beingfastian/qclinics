@@ -41,6 +41,7 @@ const LabTests = lazy(() => import("./pages/Lab/LabTests.jsx"));
 const LabStaff = lazy(() => import("./pages/Lab/LabStaff.jsx"));
 const Billing = lazy(() => import("./pages/Billing.jsx"));
 const Money = lazy(() => import("./pages/Money.jsx"));
+const Prescriptions = lazy(() => import("./pages/Prescriptions.jsx"));
 import { PharmacyContext } from "./context/PharmacyContext.jsx";
 import { useAppConfig } from "./appConfig";
 import { pharmacyRoutes } from "./modules/pharmacy/routes.jsx";
@@ -86,6 +87,7 @@ const App = () => {
                   <Route path="/patients" element={<ManagePatients />} />
                   <Route path="/add-patient" element={<AddPatient />} />
                   <Route path="/lab-requests" element={<LabOrders />} />
+                  <Route path="/prescriptions" element={<Prescriptions />} />
                   <Route path="/lab-requests/:id" element={<LabOrderDetail />} />
                   <Route path="/billing" element={<Billing />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
@@ -103,6 +105,7 @@ const App = () => {
                   <Route path="/leave-management" element={<AdminLeaveManagement />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/lab-requests" element={<LabOrders />} />
+                  <Route path="/prescriptions" element={<Prescriptions />} />
                   <Route path="/lab-requests/:id" element={<LabOrderDetail />} />
                   <Route path="/lab-tests" element={<LabTests />} />
                   <Route path="/lab-staff" element={<LabStaff />} />
@@ -119,6 +122,7 @@ const App = () => {
                   <Route path="/doctor/profile" element={<DoctorProfile />} />
                   <Route path="/doctor/leave-requests" element={<DoctorLeaveRequest />} />
                   <Route path="/doctor/lab-reports" element={<LabOrders />} />
+                  <Route path="/doctor/prescriptions" element={<Prescriptions />} />
                   <Route path="/doctor/lab-reports/:id" element={<LabOrderDetail />} />
                   <Route path="*" element={<Navigate to="/doctor" replace />} />
                 </Routes>
