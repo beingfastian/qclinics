@@ -2,8 +2,8 @@ import { lazy } from "react";
 import { Route } from "react-router-dom";
 
 // The pharmacy's pages, each loaded when first opened. The same list serves the
-// owner (hospital or standalone pharmacy) and pharmacy staff; `canManage` adds the
-// manager pages (the server checks every request anyway).
+// owner (hospital or standalone pharmacy) and pharmacy staff; `canManage` and
+// `canReport` add the manager pages (the server checks every request anyway).
 const PharmacyHome = lazy(() => import("./pages/PharmacyHome.jsx"));
 const PharmacyStaff = lazy(() => import("./pages/PharmacyStaff.jsx"));
 const PharmacyItems = lazy(() => import("./pages/PharmacyItems.jsx"));
@@ -17,8 +17,10 @@ const PharmacyCounter = lazy(() => import("./pages/PharmacyCounter.jsx"));
 const PharmacyShift = lazy(() => import("./pages/PharmacyShift.jsx"));
 const PharmacySale = lazy(() => import("./pages/PharmacySale.jsx"));
 const PharmacyReturns = lazy(() => import("./pages/PharmacyReturns.jsx"));
+const PharmacyReports = lazy(() => import("./pages/PharmacyReports.jsx"));
+const PharmacyShifts = lazy(() => import("./pages/PharmacyShifts.jsx"));
 
-export const pharmacyRoutes = ({ owner = false, canManage = false }) => [
+export const pharmacyRoutes = ({ owner = false, canManage = false, canReport = false }) => [
   <Route key="home" path="/pharmacy" element={<PharmacyHome />} />,
   <Route key="counter" path="/pharmacy/counter" element={<PharmacyCounter />} />,
   <Route key="shift" path="/pharmacy/shift" element={<PharmacyShift />} />,
@@ -33,6 +35,12 @@ export const pharmacyRoutes = ({ owner = false, canManage = false }) => [
         <Route key="purchases" path="/pharmacy/purchases" element={<PharmacyPurchases />} />,
         <Route key="purchase-new" path="/pharmacy/purchases/new" element={<PharmacyPurchaseNew />} />,
         <Route key="purchase" path="/pharmacy/purchases/:id" element={<PharmacyPurchaseDetail />} />,
+      ]
+    : []),
+  ...(canReport || owner
+    ? [
+        <Route key="reports" path="/pharmacy/reports" element={<PharmacyReports />} />,
+        <Route key="shifts" path="/pharmacy/shifts" element={<PharmacyShifts />} />,
       ]
     : []),
   ...(owner ? [<Route key="staff" path="/pharmacy/staff" element={<PharmacyStaff />} />] : []),

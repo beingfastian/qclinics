@@ -132,7 +132,7 @@ const App = () => {
               ) : (
                 // Pharmacy staff (manager or cashier)
                 <Routes>
-                  {pharmacyRoutes({ canManage: can("manageStock") })}
+                  {pharmacyRoutes({ canManage: can("manageStock"), canReport: can("viewReports") })}
                   <Route path="*" element={<Navigate to="/pharmacy" replace />} />
                 </Routes>
               )}
