@@ -33,6 +33,8 @@ import {
   FaExclamationTriangle,
   FaUndo,
   FaClock,
+  FaChartLine,
+  FaHistory,
 } from "react-icons/fa";
 
 // The pharmacy's pages. perm: only staff whose role has it (the owner sees all)
@@ -45,6 +47,8 @@ const pharmacyItems = [
   { path: "/pharmacy/stock", icon: <FaExclamationTriangle />, label: "Stock Alerts" },
   { path: "/pharmacy/purchases", icon: <FaTruckLoading />, label: "Purchases", perm: "manageStock" },
   { path: "/pharmacy/suppliers", icon: <FaTruck />, label: "Suppliers", perm: "manageStock" },
+  { path: "/pharmacy/reports", icon: <FaChartLine />, label: "Reports", perm: "viewReports" },
+  { path: "/pharmacy/shifts", icon: <FaHistory />, label: "Shifts", perm: "viewReports" },
 ];
 
 const adminSections = [

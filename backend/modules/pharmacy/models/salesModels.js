@@ -32,6 +32,7 @@ shiftSchema.index({ shiftNo: 1 }, { unique: true });
 // The second "open" for the same person (two tabs, a double click) fails here
 shiftSchema.index({ actorKey: 1 }, { unique: true, partialFilterExpression: { status: "open" } });
 shiftSchema.index({ createdAt: -1, _id: -1 });
+shiftSchema.index({ status: 1, closedAt: -1 });
 
 export const shiftModel = mongoose.models.pharmacyShift || mongoose.model("pharmacyShift", shiftSchema);
 
@@ -142,5 +143,6 @@ returnSchema.index({ returnNo: 1 }, { unique: true });
 returnSchema.index({ requestId: 1 }, { unique: true, partialFilterExpression: { requestId: { $type: "string" } } });
 returnSchema.index({ shiftId: 1 });
 returnSchema.index({ saleId: 1 });
+returnSchema.index({ createdAt: -1 });
 
 export const returnModel = mongoose.models.pharmacyReturn || mongoose.model("pharmacyReturn", returnSchema);

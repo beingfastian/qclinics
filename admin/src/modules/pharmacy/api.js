@@ -65,3 +65,20 @@ export const expiryText = (value) => (value ? new Date(value).toLocaleDateString
 
 export const newRequestId = () =>
   (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`);
+
+// Save rows as a CSV file (opens in Excel). columns: [[heading, row => value]]
+export const downloadCsv = (fileName, rows, columns) => {
+  const cell = (v) => {
+    const text = String(v ?? "");
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+  const lines = [columns.map(([h]) => cell(h)).join(","), ...rows.map((r) => columns.map(([, f]) => cell(f(r))).join(","))];
+  const url = URL.createObjectURL(new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: fileName });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+// Rupees for a CSV cell (a number Excel can add up)
+export const rupees = (paisa) => (Math.round(paisa || 0) / 100).toFixed(2);
