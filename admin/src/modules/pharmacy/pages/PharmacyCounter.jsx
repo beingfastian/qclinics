@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import { FaCashRegister, FaMinus, FaPause, FaPlus, FaSearch, FaTrash } from "react-icons/fa";
+import { FaCashRegister, FaMinus, FaPause, FaPlus, FaPrescriptionBottleAlt, FaSearch, FaTrash } from "react-icons/fa";
 import { Badge, Button, Card, EmptyState, Field, IconButton, Input, Modal, Page, Segmented, useDialog } from "../../../components/ui";
 import { useAppConfig } from "../../../appConfig";
 import { pharmacyGet, pharmacyPost, errorText, money, toPaisa, stockText, itemTitle, newRequestId } from "../api";
@@ -17,7 +17,9 @@ import CustomerPicker from "../components/CustomerPicker";
 // The bill being made is kept on this computer until it's paid, with one request id:
 // if the connection drops after paying, paying again never charges twice.
 const CART_KEY = "pharmacy.counterCart";
-const emptyCart = () => ({ lines: [], discount: "", method: "cash", cash: "", customer: null, requestId: newRequestId() });
+// rx: the doctor's prescription this bill dispenses (each bill line may carry rxLine,
+// the prescription line it is for)
+const emptyCart = () => ({ lines: [], discount: "", method: "cash", cash: "", customer: null, rx: null, requestId: newRequestId() });
 const readCart = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(CART_KEY) || "null");
@@ -43,7 +45,9 @@ const cartProduct = (p) => ({
 const PharmacyCounter = () => {
   const config = useAppConfig();
   const allowed = usePharmacyAccess();
-  const { prompt } = useDialog();
+  const { prompt, confirm } = useDialog();
+  const [params, setParams] = useSearchParams();
+  const [pickFor, setPickFor] = useState(null); // a prescription line waiting for its item
   const [shift, setShift] = useState(undefined); // undefined loading, null none
   const [cart, setCart] = useState(readCart);
   const [q, setQ] = useState("");
@@ -58,6 +62,42 @@ const PharmacyCounter = () => {
   const search = useRef(null);
   const latest = useRef(0);
   const shopName = shopNameOf(config);
+
+  // "Dispense" in the prescription queue opens the counter with ?rx=<id>: the
+  // prescribed items go into the bill, what is left to give of each
+  useEffect(() => {
+    const id = params.get("rx");
+    if (!id || shift === undefined || shift === null) return;
+    setParams({}, { replace: true });
+    (async () => {
+      try {
+        const { prescription: rx } = await pharmacyGet(`/prescriptions/${id}`);
+        if (!["waiting", "partly"].includes(rx.status)) return toast.error(`Rx-${rx.rxNo} isn't open any more`);
+        if (cart.lines.length && !(await confirm({ title: "Replace the bill?", message: "The items in the bill now are removed. Hold it first to keep them.", confirmLabel: "Replace" }))) return;
+        const products = await Promise.all(rx.items.map((m) => (m.productId ? pharmacyGet(`/products/${m.productId}`).then((d) => d.product).catch(() => null) : null)));
+        const lines = [];
+        rx.items.forEach((m, i) => {
+          const left = Math.max(1, m.qtyUnits || 1) - (m.dispensedUnits || 0);
+          const p = products[i];
+          if (p && p.active && left > 0 && !lines.some((l) => l.productId === p._id)) lines.push({ ...cartProduct(p), qtyUnits: left, rxLine: i });
+        });
+        setCart({ ...emptyCart(), lines, rx: { id: rx._id, rxNo: rx.rxNo, patient: rx.patient, doctor: rx.doctor, items: rx.items } });
+        setPickFor(null);
+      } catch (e) {
+        toast.error(errorText(e));
+      }
+    })();
+  }, [params, shift]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dropRx = () => {
+    setCart((c) => ({ ...c, rx: null, lines: c.lines.map((l) => ({ ...l, rxLine: undefined })) }));
+    setPickFor(null);
+  };
+  const pickItemFor = (i) => {
+    setPickFor(i);
+    setQ(cart.rx.items[i].name);
+    search.current?.focus();
+  };
 
   useEffect(() => {
     pharmacyGet("/shifts/current")
@@ -102,13 +142,17 @@ const PharmacyCounter = () => {
   const remove = (productId) => setCart((c) => ({ ...c, lines: c.lines.filter((l) => l.productId !== productId) }));
 
   // Adding an item already in the bill adds one more unit
+  // While a prescription line waits for its item, the item added is for that line
   const add = (p) => {
+    const forLine = pickFor !== null && cart.rx ? pickFor : undefined;
+    const qtyFor = forLine !== undefined ? Math.max(1, (cart.rx.items[forLine].qtyUnits || 1) - (cart.rx.items[forLine].dispensedUnits || 0)) : 1;
     setCart((c) => {
       const there = c.lines.find((l) => l.productId === p._id);
       return there
-        ? { ...c, lines: c.lines.map((l) => (l.productId === p._id ? { ...l, qtyUnits: l.qtyUnits + 1 } : l)) }
-        : { ...c, lines: [...c.lines, { ...cartProduct(p), qtyUnits: 1 }] };
+        ? { ...c, lines: c.lines.map((l) => (l.productId === p._id ? { ...l, qtyUnits: l.qtyUnits + qtyFor, rxLine: l.rxLine ?? forLine } : l)) }
+        : { ...c, lines: [...c.lines, { ...cartProduct(p), qtyUnits: qtyFor, ...(forLine !== undefined && { rxLine: forLine }) }] };
     });
+    setPickFor(null);
     setQ("");
     setFound([]);
     setSubsFor(null);
@@ -165,7 +209,8 @@ const PharmacyCounter = () => {
       setProblems({});
       try {
         const data = await pharmacyPost("/sales", {
-          items: cart.lines.map((l) => ({ productId: l.productId, qtyUnits: l.qtyUnits })),
+          items: cart.lines.map((l) => ({ productId: l.productId, qtyUnits: l.qtyUnits, ...(cart.rx && Number.isInteger(l.rxLine) && { rxLine: l.rxLine }) })),
+          ...(cart.rx && { prescriptionId: cart.rx.id }),
           discountPaisa: discount || 0,
           paymentMethod: cart.method,
           ...((cart.method === "cash" || onKhata) && { cashReceivedPaisa: cashPaisa }),
@@ -176,6 +221,7 @@ const PharmacyCounter = () => {
           ...(managerApproval && { managerApproval }),
         });
         setDone(data.sale);
+        if (cart.rx) toast.success(`Rx-${cart.rx.rxNo} for ${cart.rx.patient?.name}: dispensed`);
         setApproval(false);
         setCart(emptyCart());
         if (printWin) printSaleReceipt(data.sale, shopName, printWin);
@@ -189,11 +235,14 @@ const PharmacyCounter = () => {
         } else if (body?.code === "price_changed") {
           // Fresh prices for every line, then the cashier checks the new total
           const fresh = await Promise.all(cart.lines.map((l) => pharmacyGet(`/products/${l.productId}`).then((d) => d.product).catch(() => null)));
-          setCart((c) => ({ ...c, lines: c.lines.map((l, i) => (fresh[i] ? { ...cartProduct(fresh[i]), qtyUnits: l.qtyUnits } : l)) }));
+          setCart((c) => ({ ...c, lines: c.lines.map((l, i) => (fresh[i] ? { ...cartProduct(fresh[i]), qtyUnits: l.qtyUnits, rxLine: l.rxLine } : l)) }));
           toast.warn(`${body.message} New total: ${money(body.totalPaisa)}`);
         } else if (body?.code === "no_shift") {
           setShift(null);
           toast.error(body.message);
+        } else if (body?.code === "rx_not_open") {
+          dropRx();
+          toast.error(`${body.message}. It was taken off this bill.`);
         } else if (body?.code === "approval_refused" || body?.code === "credit_limit") {
           toast.error(body.message);
         } else if (!e?.response) {
@@ -323,6 +372,38 @@ const PharmacyCounter = () => {
               )}
             </div>
           </Card>
+
+          {cart.rx && (
+            <Card className="mb-3 border-primary-200 bg-primary-50/40" aria-label="Prescription">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="flex items-center gap-2 font-medium text-slate-900">
+                  <FaPrescriptionBottleAlt className="text-primary-700" aria-hidden="true" />
+                  Rx-{cart.rx.rxNo} · {cart.rx.patient?.name} <span className="text-sm font-normal text-slate-600">Dr. {cart.rx.doctor?.name}</span>
+                </p>
+                <Button size="sm" variant="ghost" onClick={dropRx}>Not for this prescription</Button>
+              </div>
+              <ul className="space-y-1 text-sm">
+                {cart.rx.items.map((m, i) => {
+                  const inBill = cart.lines.find((l) => l.rxLine === i);
+                  return (
+                    <li key={i} className="flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        {[m.name, m.strength].filter(Boolean).join(" ")}
+                        <span className="text-slate-500">{[m.dose, m.days && `${m.days} days`, m.qtyUnits && `give ${m.qtyUnits}`, m.dispensedUnits && `${m.dispensedUnits} given before`].filter(Boolean).map((t) => ` · ${t}`).join("")}</span>
+                      </span>
+                      {inBill ? (
+                        <Badge tone="success">In the bill: {inBill.name}</Badge>
+                      ) : pickFor === i ? (
+                        <Badge tone="info">Choose the item above</Badge>
+                      ) : (
+                        <Button size="sm" onClick={() => pickItemFor(i)}>Pick an item</Button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          )}
 
           {subsFor && (
             <Card className="mb-3">

@@ -171,6 +171,36 @@ export const printReceiptSlip = (receipt, win = openPrintWindow()) => {
   return true;
 };
 
+// The patient's prescription. rx: { rxNo, patient, doctor, items, note, createdAt }
+export const printPrescriptionSlip = (rx, win = openPrintWindow()) => {
+  if (!win || win.closed) return false;
+  const lines = (rx.items || [])
+    .map((m, i) => {
+      const how = [m.dose, m.days ? `${m.days} days` : "", m.qtyUnits ? `(${m.qtyUnits})` : ""].filter(Boolean).join(" × ").replace(" × (", " (");
+      return `<div style="margin:4px 0"><b>${i + 1}. ${escapeHtml([m.name, m.strength].filter(Boolean).join(" "))}</b>
+        ${how ? `<div>${escapeHtml(how)}</div>` : ""}${m.instructions ? `<div class="k">${escapeHtml(m.instructions)}</div>` : ""}</div>`;
+    })
+    .join("");
+  const age = rx.patient?.age || "";
+  writeAndPrint(
+    win,
+    `Prescription Rx-${rx.rxNo}`,
+    `${header()}
+  <div class="type">Prescription / <span class="ur">نسخہ</span></div>
+  ${row("Rx", `Rx-${rx.rxNo}`)}
+  ${row("Patient", `${rx.patient?.name || ""}${age ? `, ${age}` : ""}`)}
+  ${row("Doctor", `Dr. ${rx.doctor?.name || ""}`)}
+  ${row("Date", new Date(rx.createdAt || Date.now()).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" }))}
+  <hr>
+  ${lines}
+  ${rx.note ? `<hr><div>${escapeHtml(rx.note)}</div>` : ""}
+  <hr>
+  <div class="foot">Take medicines as written. Ask the doctor before stopping.</div>
+  <div class="foot ur">دوا لکھے ہوئے طریقے سے لیں۔ بند کرنے سے پہلے ڈاکٹر سے پوچھیں۔</div>`
+  ).catch(() => win.close());
+  return true;
+};
+
 // details: { number, patientName, doctorName, dateText, issuedTime, ahead, waitMinutes, urgent, trackUrl, receipt? }
 // receipt (optional): the payment, printed under the token on the same slip
 // win: a window from openPrintWindow() opened earlier in the click (e.g. before

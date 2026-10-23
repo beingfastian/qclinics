@@ -18,6 +18,7 @@ import { mountStockRoutes } from "./routes/stockRoutes.js";
 import { mountSalesRoutes } from "./routes/salesRoutes.js";
 import { mountReportRoutes } from "./routes/reportRoutes.js";
 import { mountKhataRoutes } from "./routes/khataRoutes.js";
+import { mountPrescriptionRoutes } from "./routes/prescriptionRoutes.js";
 
 export const pharmacyRouter = () => {
   const router = express.Router();
@@ -59,8 +60,14 @@ export const pharmacyRouter = () => {
   // Khata (customers and suppliers) and labels
   mountKhataRoutes(router);
 
+  // Prescriptions from the hospital's doctors
+  mountPrescriptionRoutes(router);
+
   return router;
 };
 
 // Shared sign-in (controllers/authController.js) checks pharmacy staff through this
 export { checkLogin as checkPharmacyLogin } from "./services/staffService.js";
+
+// Ports for the hospital: prescriptions in, medicine names and dispensing status out
+export * as pharmacyPorts from "./ports.js";

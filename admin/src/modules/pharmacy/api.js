@@ -1,4 +1,5 @@
 import axios from "axios";
+import { useEffect, useState } from "react";
 
 // The pharmacy module's API (backend modules/pharmacy). Pharmacy staff send their
 // own login (ptoken); the owner uses the admin login (atoken).
@@ -82,3 +83,20 @@ export const downloadCsv = (fileName, rows, columns) => {
 };
 // Rupees for a CSV cell (a number Excel can add up)
 export const rupees = (paisa) => (Math.round(paisa || 0) / 100).toFixed(2);
+
+// Prescriptions waiting at the pharmacy, for the menu badge (checked every minute)
+export const usePrescriptionCount = (enabled) => {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!enabled) return setCount(0);
+    let alive = true;
+    const load = () => pharmacyGet("/prescriptions/count").then((d) => alive && setCount(d.open || 0)).catch(() => {});
+    load();
+    const timer = setInterval(load, 60000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [enabled]);
+  return count;
+};

@@ -20,6 +20,7 @@ import {
   FaSyncAlt,
   FaWifi,
   FaFlask,
+  FaPrescriptionBottleAlt,
   FaCalendarPlus,
   FaSearch,
   FaUserMd,
@@ -30,6 +31,7 @@ import { AppContext } from "../context/AppContext";
 import LanguageSelect from "../components/LanguageSelect";
 import { openPrintWindow, printTokenSlip } from "../components/PrintSlip";
 import LabOrderModal from "../components/LabOrderModal";
+import PrescriptionModal from "../components/PrescriptionModal";
 import FollowUpModal from "../components/FollowUpModal";
 import { useLabEnabled } from "../lab/api";
 import { useBillingEnabled } from "../billing/api";
@@ -245,6 +247,7 @@ const Queue = () => {
   const [autoPrint, setAutoPrint] = useState(() => readStorage(AUTO_PRINT_KEY, "true") === "true");
   const [showFinished, setShowFinished] = useState(false);
   const [labFor, setLabFor] = useState(null);
+  const [rxFor, setRxFor] = useState(null);
   const [followUpFor, setFollowUpFor] = useState(null);
   // Billing: after a token is issued, reception collects the fee (token + receipt print together)
   const [collectFor, setCollectFor] = useState(null);
@@ -463,6 +466,9 @@ const Queue = () => {
       {/* Doctor's actions for the patient in front of them */}
       {current && !isAdmin && current.appointmentId && (
         <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap gap-2">
+          <button onClick={() => setRxFor(current)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-primary-200 text-sm font-medium text-primary-700 hover:bg-primary-50">
+            <FaPrescriptionBottleAlt /> Prescription
+          </button>
           {labEnabled && (
             <button onClick={() => setLabFor(current)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-teal-200 text-sm font-medium text-teal-700 hover:bg-teal-50">
               <FaFlask /> Request lab tests
@@ -609,6 +615,7 @@ const Queue = () => {
               )}
               {!isAdmin && t.status === "done" && t.appointmentId && (
                 <span className="flex gap-2">
+                  <button onClick={() => setRxFor(t)} className="text-primary-700 text-xs inline-flex items-center gap-1"><FaPrescriptionBottleAlt /> Rx</button>
                   {labEnabled && (
                     <button onClick={() => setLabFor(t)} className="text-teal-700 text-xs inline-flex items-center gap-1"><FaFlask /> Tests</button>
                   )}
@@ -663,6 +670,7 @@ const Queue = () => {
   const modals = (
     <>
       {labFor && <LabOrderModal source={{ queueTokenId: labFor._id }} patientName={labFor.patientName} doctorName={doctorName} onClose={() => setLabFor(null)} />}
+      {rxFor && <PrescriptionModal source={{ queueTokenId: rxFor._id }} patientName={rxFor.patientName} onClose={() => setRxFor(null)} />}
       {followUpFor && <FollowUpModal appointment={followUpFor} onClose={() => setFollowUpFor(null)} />}
       {collectFor && (
         <CollectDialog

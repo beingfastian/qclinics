@@ -13,6 +13,7 @@ import { requireShift, touchShift } from "./shiftService.js";
 import { checkLogin } from "./staffService.js";
 import { chargeAccount, undoAccount } from "./khataService.js";
 import { customerModel } from "../models/khataModels.js";
+import { dispenseAgainst, undoDispense } from "./prescriptionService.js";
 import { PharmacyError, notFound } from "../http.js";
 import { can } from "../permissions.js";
 import { inTransaction, isDuplicateKey, supportsTransactions } from "../../../lib/transactions.js";
@@ -35,10 +36,14 @@ export const publicSale = (sale, actor) => {
 };
 
 // The same item twice in a cart counts once
+// (a line's prescription line, if any, is kept from the first time it appears)
 const mergeLines = (items) => {
   const merged = new Map();
-  for (const { productId, qtyUnits } of items) merged.set(productId, (merged.get(productId) || 0) + qtyUnits);
-  return [...merged].map(([productId, qtyUnits]) => ({ productId, qtyUnits }));
+  for (const { productId, qtyUnits, rxLine } of items) {
+    const line = merged.get(productId) || { productId, qtyUnits: 0, rxLine };
+    merged.set(productId, { ...line, qtyUnits: line.qtyUnits + qtyUnits });
+  }
+  return [...merged.values()];
 };
 
 // Price a cart from the server's item list: lines, subtotal
@@ -48,7 +53,7 @@ export const priceCart = async (items) => {
   const priced = lines.map((line) => {
     const product = products.get(line.productId);
     if (!product || !product.active) throw new PharmacyError("An item in the bill is no longer sold. Remove it and try again.", { status: 409, code: "item_gone", extra: { productId: line.productId } });
-    return { product, qtyUnits: line.qtyUnits, lineTotalPaisa: linePrice(product, line.qtyUnits) };
+    return { product, qtyUnits: line.qtyUnits, rxLine: line.rxLine, lineTotalPaisa: linePrice(product, line.qtyUnits) };
   });
   return { priced, subtotalPaisa: priced.reduce((sum, l) => sum + l.lineTotalPaisa, 0) };
 };
@@ -164,6 +169,11 @@ export const createSale = async (input, actor) => {
         oversold ||= allocations.some((a) => a.negativeOverride);
       }
       set.costPaisa = costPaisa;
+      // Dispensed against a doctor's prescription: count each line against it
+      if (input.prescriptionId) {
+        const rx = await dispenseAgainst({ prescriptionId: input.prescriptionId, lines: priced, sale: { _id, saleNo } }, session);
+        Object.assign(set, { prescriptionId: input.prescriptionId, rxNo: rx.rxNo });
+      }
       if (onAccountPaisa > 0) {
         await chargeAccount({ customerId: customer._id, amountPaisa: onAccountPaisa, ref, by: actor, overLimit: can(actor, "manageCredit") }, session);
       }
@@ -181,6 +191,7 @@ export const createSale = async (input, actor) => {
     if (!(await supportsTransactions())) {
       await undoStock(_id);
       await undoAccount(_id);
+      if (input.prescriptionId) await undoDispense({ prescriptionId: input.prescriptionId, lines: priced, saleId: _id });
       await saleModel.deleteOne({ _id });
     }
     throw error;

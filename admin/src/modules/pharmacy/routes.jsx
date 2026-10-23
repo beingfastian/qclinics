@@ -23,6 +23,7 @@ const PharmacyCustomers = lazy(() => import("./pages/PharmacyCustomers.jsx"));
 const PharmacyCustomer = lazy(() => import("./pages/PharmacyCustomer.jsx"));
 const PharmacySupplier = lazy(() => import("./pages/PharmacySupplier.jsx"));
 const PharmacyLabels = lazy(() => import("./pages/PharmacyLabels.jsx"));
+const PharmacyPrescriptions = lazy(() => import("./pages/PharmacyPrescriptions.jsx"));
 
 export const pharmacyRoutes = ({ owner = false, canManage = false, canReport = false }) => [
   <Route key="home" path="/pharmacy" element={<PharmacyHome />} />,
@@ -31,6 +32,7 @@ export const pharmacyRoutes = ({ owner = false, canManage = false, canReport = f
   <Route key="sale" path="/pharmacy/sales/:id" element={<PharmacySale />} />,
   <Route key="returns" path="/pharmacy/returns" element={<PharmacyReturns />} />,
   <Route key="customers" path="/pharmacy/customers" element={<PharmacyCustomers />} />,
+  <Route key="prescriptions" path="/pharmacy/prescriptions" element={<PharmacyPrescriptions />} />,
   <Route key="customer" path="/pharmacy/customers/:id" element={<PharmacyCustomer />} />,
   <Route key="items" path="/pharmacy/items" element={<PharmacyItems />} />,
   <Route key="item" path="/pharmacy/items/:id" element={<PharmacyItem />} />,

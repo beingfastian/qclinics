@@ -19,6 +19,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import queueRouter from "./routes/queueRoute.js";
 import labRouter from "./routes/labRoute.js";
+import prescriptionRouter from "./routes/prescriptionRoute.js";
 import billingRouter from "./routes/billingRoute.js";
 import { testEmailConnection } from "./config/emailService.js";
 import { runReminderCheck } from "./jobs/reminders.js";
@@ -162,6 +163,7 @@ if (isHospital()) {
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/queue", queueRouter);
   app.use("/api/lab", labRouter);
+  app.use("/api/prescriptions", prescriptionRouter);
   app.use("/api/billing", billingRouter);
 }
 
