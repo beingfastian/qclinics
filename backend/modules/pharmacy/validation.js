@@ -145,7 +145,10 @@ export const movementListSchema = z.object({ productId: objectId, limit: limitQu
 
 // --- The counter: shifts, sales, held bills, returns ---
 const qty = z.number({ invalid_type_error: "Enter a quantity" }).int("Whole units only").min(1, "At least 1").max(100_000);
-const cartItems = z.array(z.object({ productId: objectId, qtyUnits: qty })).min(1, "The bill is empty").max(200);
+const cartItems = z
+  .array(z.object({ productId: objectId, qtyUnits: qty, rxLine: z.number().int().min(0).max(200).optional() }))
+  .min(1, "The bill is empty")
+  .max(200);
 const requestId = z.string().trim().min(8).max(80).optional();
 
 export const openShiftSchema = z.object({ openingCashPaisa: paisa });
@@ -163,6 +166,7 @@ export const createSaleSchema = z.object({
   allowNegative: z.boolean().default(false),
   managerApproval: z.object({ email: z.string().trim().max(120), password: z.string().max(100) }).optional(),
   customerId: objectId.optional(),
+  prescriptionId: objectId.optional(),
   requestId,
 });
 export const saleListSchema = z.object({ shiftId: objectId.optional(), limit: limitQuery, cursor: z.string().max(100).optional() });
@@ -235,3 +239,12 @@ export const supplierPaymentSchema = z.object({
   fromDrawer: z.boolean().default(false),
   requestId,
 });
+
+// --- Prescriptions from the hospital's doctors ---
+export const rxListSchema = z.object({
+  status: z.enum(["open", "waiting", "partly", "dispensed", "closed", "cancelled", "all"]).default("open"),
+  q: text(60).optional(),
+  limit: limitQuery,
+  cursor: z.string().max(100).optional(),
+});
+export const rxCloseSchema = z.object({ note: z.string().trim().min(1, "Write why it's closed").max(200) });

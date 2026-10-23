@@ -7,12 +7,11 @@
 import bcrypt from "bcrypt";
 import validator from "validator";
 import { labStaffModel, labTestModel, labOrderModel, labCounterModel } from "../model/labModel.js";
-import appointmentModel from "../model/appointmentModel.js";
 import userModel from "../model/userModel.js";
 import doctorModel from "../model/doctorModel.js";
-import { queueTokenModel } from "../model/queueModel.js";
 import { createNotification } from "../controllers/notificationController.js";
 import { saveReport, deleteReport } from "./reportStorage.js";
+import { resolveVisitPatient, visitPatientSnapshot } from "./visitPatient.js";
 
 // An error whose message is safe to show to staff
 export class LabError extends Error {}
@@ -197,28 +196,6 @@ const nextOrderNumber = async () => {
   return counter.seq;
 };
 
-// The patient for a new order: from an appointment, a queue token, or a patient record
-const resolvePatient = async ({ docId, appointmentId, queueTokenId, userId }) => {
-  if (appointmentId) {
-    const appointment = await appointmentModel.findById(appointmentId).lean();
-    if (!appointment || appointment.docId !== docId) throw new LabError("Appointment not found");
-    if (appointment.cancelled) throw new LabError("This appointment was cancelled");
-    return { userId: appointment.userId, appointmentId: String(appointment._id) };
-  }
-  if (queueTokenId) {
-    const token = await queueTokenModel.findById(queueTokenId).lean();
-    if (!token || token.docId !== docId) throw new LabError("Queue token not found");
-    return {
-      userId: token.userId,
-      appointmentId: token.appointmentId,
-      queueTokenId: String(token._id),
-      walkIn: { name: token.patientName, phone: token.phone, age: token.age, gender: token.gender },
-    };
-  }
-  if (userId) return { userId: String(userId) };
-  throw new LabError("Please choose the patient");
-};
-
 export const createOrder = async ({ actor, io, appointmentId, queueTokenId, userId, testIds, urgent, note }) => {
   if (actor.role !== "doctor") throw new LabError("Only doctors can request tests");
   const docId = actor.id;
@@ -229,9 +206,9 @@ export const createOrder = async ({ actor, io, appointmentId, queueTokenId, user
   const tests = await labTestModel.find({ _id: { $in: ids }, active: true }).lean();
   if (tests.length !== ids.length) throw new LabError("Some tests are no longer offered. Please refresh and choose again.");
 
-  const source = await resolvePatient({ docId, appointmentId, queueTokenId, userId });
-  const user = source.userId ? await userModel.findById(source.userId).select("name phone gender dob").lean() : null;
-  if (!user && !source.walkIn) throw new LabError("Patient not found");
+  const fail = (message) => new LabError(message);
+  const source = await resolveVisitPatient({ docId, appointmentId, queueTokenId, userId }, fail);
+  const { user, patient } = await visitPatientSnapshot(source, fail);
   const doctor = await doctorModel.findById(docId).select("name speciality").lean();
 
   const order = await labOrderModel.create({
@@ -240,15 +217,7 @@ export const createOrder = async ({ actor, io, appointmentId, queueTokenId, user
     docId,
     doctor: { name: doctor?.name, speciality: doctor?.speciality },
     ...(user && { userId: String(user._id) }),
-    patient: user
-      ? {
-          name: user.name,
-          phone: user.phone,
-          gender: user.gender || source.walkIn?.gender,
-          dob: user.dob,
-          ...(source.walkIn?.age && { age: source.walkIn.age }),
-        }
-      : { name: source.walkIn.name, phone: source.walkIn.phone, age: source.walkIn.age, gender: source.walkIn.gender },
+    patient,
     ...(source.appointmentId && { appointmentId: source.appointmentId }),
     ...(source.queueTokenId && { queueTokenId: source.queueTokenId }),
     tests: tests

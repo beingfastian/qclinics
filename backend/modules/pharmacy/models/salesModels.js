@@ -80,6 +80,8 @@ const saleSchema = new mongoose.Schema(
     customerPhone: { type: String, default: "" },
     customerId: { type: String }, // an account customer
     onAccountPaisa: { type: Number, default: 0 }, // put on their khata
+    prescriptionId: { type: String }, // dispensed against a doctor's prescription
+    rxNo: { type: Number },
     // Sold beyond the stock entered: the manager who allowed it
     negativeOverride: { type: Boolean },
     approvedBy: { type: actorSchema },
