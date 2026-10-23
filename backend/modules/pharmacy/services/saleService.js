@@ -11,6 +11,8 @@ import { takeStock, undoStock } from "./stockService.js";
 import { linePrice } from "./pricing.js";
 import { requireShift, touchShift } from "./shiftService.js";
 import { checkLogin } from "./staffService.js";
+import { chargeAccount, undoAccount } from "./khataService.js";
+import { customerModel } from "../models/khataModels.js";
 import { PharmacyError, notFound } from "../http.js";
 import { can } from "../permissions.js";
 import { inTransaction, isDuplicateKey, supportsTransactions } from "../../../lib/transactions.js";
@@ -84,8 +86,18 @@ export const createSale = async (input, actor) => {
     });
   }
   const method = input.paymentMethod;
-  const cashReceivedPaisa = method === "cash" ? input.cashReceivedPaisa ?? totalPaisa : totalPaisa;
-  if (cashReceivedPaisa < totalPaisa) throw new PharmacyError("Cash received is less than the total", { code: "invalid" });
+  // Cash: what was handed over (change given back). Account: cash paid now, the rest
+  // goes on the customer's khata. Card and online: the exact total.
+  const cashReceivedPaisa = method === "cash" ? input.cashReceivedPaisa ?? totalPaisa : method === "account" ? input.cashReceivedPaisa ?? 0 : totalPaisa;
+  if (method === "cash" && cashReceivedPaisa < totalPaisa) throw new PharmacyError("Cash received is less than the total", { code: "invalid" });
+  if (method === "account" && cashReceivedPaisa > totalPaisa) throw new PharmacyError("Paid now is more than the bill", { code: "invalid" });
+  const onAccountPaisa = method === "account" ? totalPaisa - cashReceivedPaisa : 0;
+  let customer = null;
+  if (input.customerId) {
+    customer = await customerModel.findById(input.customerId).lean();
+    if (!customer || !customer.active) throw notFound("Customer");
+  }
+  if (method === "account" && !customer) throw new PharmacyError("Choose the customer whose khata this goes on", { code: "invalid" });
 
   // Selling beyond the stock entered: a manager signed in, or one who approves here
   let approvedBy = null;
@@ -127,9 +139,11 @@ export const createSale = async (input, actor) => {
             totalPaisa,
             paymentMethod: method,
             cashReceivedPaisa,
-            changePaisa: cashReceivedPaisa - totalPaisa,
-            customerName: input.customerName,
-            customerPhone: input.customerPhone,
+            changePaisa: method === "cash" ? cashReceivedPaisa - totalPaisa : 0,
+            onAccountPaisa,
+            ...(customer && { customerId: String(customer._id) }),
+            customerName: customer?.name || input.customerName,
+            customerPhone: customer?.phone || input.customerPhone,
             ...(input.requestId && { requestId: input.requestId }),
           },
         ],
@@ -150,6 +164,9 @@ export const createSale = async (input, actor) => {
         oversold ||= allocations.some((a) => a.negativeOverride);
       }
       set.costPaisa = costPaisa;
+      if (onAccountPaisa > 0) {
+        await chargeAccount({ customerId: customer._id, amountPaisa: onAccountPaisa, ref, by: actor, overLimit: can(actor, "manageCredit") }, session);
+      }
       if (oversold) Object.assign(set, { negativeOverride: true, approvedBy });
       return saleModel.findByIdAndUpdate(_id, { $set: set }, { new: true, session }).lean();
     });
@@ -163,6 +180,7 @@ export const createSale = async (input, actor) => {
     // Without transactions nothing is undone for us
     if (!(await supportsTransactions())) {
       await undoStock(_id);
+      await undoAccount(_id);
       await saleModel.deleteOne({ _id });
     }
     throw error;

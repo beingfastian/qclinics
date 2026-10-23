@@ -8,6 +8,7 @@ import { authPharmacy } from "../auth.js";
 import * as catalog from "../services/catalogService.js";
 import * as purchases from "../services/purchaseService.js";
 import * as stock from "../services/stockViews.js";
+import { suppliersWithBalances } from "../services/khataService.js";
 import {
   idParam,
   createProductSchema,
@@ -41,7 +42,7 @@ export const mountStockRoutes = (router) => {
   );
 
   // --- Suppliers ---
-  router.get("/suppliers", authPharmacy("manageStock"), validate(supplierListSchema, "query"), handle(async (req) => ({ suppliers: await catalog.listSuppliers(req.validatedQuery) })));
+  router.get("/suppliers", authPharmacy("manageStock"), validate(supplierListSchema, "query"), handle(async (req) => ({ suppliers: await suppliersWithBalances(await catalog.listSuppliers(req.validatedQuery)) })));
   router.post("/suppliers", authPharmacy("manageStock"), validate(createSupplierSchema), handle(async (req) => ({ supplier: await catalog.createSupplier(req.body), message: "Supplier added" })));
   router.put(
     "/suppliers/:id",

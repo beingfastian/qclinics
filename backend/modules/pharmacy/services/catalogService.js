@@ -2,7 +2,7 @@
 // them (manager, owner): cashiers never receive cost prices from the server.
 import mongoose from "mongoose";
 import { productModel, saltKeyOf } from "../models/productModel.js";
-import { batchModel } from "../models/stockModels.js";
+import { batchModel, nextNumber } from "../models/stockModels.js";
 import { supplierModel } from "../models/purchaseModels.js";
 import { PharmacyError, notFound } from "../http.js";
 import { isDuplicateKey } from "../../../lib/transactions.js";
@@ -151,4 +151,23 @@ export const updateSupplier = async (id, input) => {
   Object.assign(supplier, input);
   await supplier.save();
   return publicSupplier(supplier.toObject());
+};
+
+// --- Shop barcodes ---
+// An item without a maker's barcode gets one of the shop's own, so its label can be
+// scanned at the counter. EAN-13 in the "in-store" range (starting 20), which no
+// product from a maker uses.
+export const ean13 = (twelveDigits) => {
+  const sum = [...twelveDigits].reduce((s, d, i) => s + Number(d) * (i % 2 ? 3 : 1), 0);
+  return twelveDigits + ((10 - (sum % 10)) % 10);
+};
+
+export const assignShopBarcode = async (id, actor) => {
+  const product = await productModel.findById(id);
+  if (!product) throw notFound("Item");
+  if (product.barcodes.length) return publicProduct(product.toObject(), actor);
+  const code = ean13(`20${String(await nextNumber("shopBarcode")).padStart(10, "0")}`);
+  // Only if it still has none (two clicks at once give one code)
+  const updated = await productModel.findOneAndUpdate({ _id: id, "barcodes.0": { $exists: false } }, { $set: { barcodes: [code] } }, { new: true }).lean();
+  return publicProduct(updated || (await productModel.findById(id).lean()), actor);
 };

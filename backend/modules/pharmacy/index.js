@@ -17,6 +17,7 @@ import { createStaffSchema, updateStaffSchema, idParam } from "./validation.js";
 import { mountStockRoutes } from "./routes/stockRoutes.js";
 import { mountSalesRoutes } from "./routes/salesRoutes.js";
 import { mountReportRoutes } from "./routes/reportRoutes.js";
+import { mountKhataRoutes } from "./routes/khataRoutes.js";
 
 export const pharmacyRouter = () => {
   const router = express.Router();
@@ -54,6 +55,9 @@ export const pharmacyRouter = () => {
 
   // Dashboard and reports
   mountReportRoutes(router);
+
+  // Khata (customers and suppliers) and labels
+  mountKhataRoutes(router);
 
   return router;
 };
