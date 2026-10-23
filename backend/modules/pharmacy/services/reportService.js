@@ -52,7 +52,9 @@ const totalsFor = async (start, end) => {
           salesPaisa: { $sum: "$totalPaisa" },
           discountPaisa: { $sum: "$discountPaisa" },
           costPaisa: { $sum: "$costPaisa" },
-          cashPaisa: { $sum: { $cond: [{ $eq: ["$paymentMethod", "cash"] }, "$totalPaisa", 0] } },
+          // Cash: cash bills, and cash paid now on bills put on account
+          cashPaisa: { $sum: { $cond: [{ $eq: ["$paymentMethod", "cash"] }, "$totalPaisa", { $cond: [{ $eq: ["$paymentMethod", "account"] }, "$cashReceivedPaisa", 0] }] } },
+          accountPaisa: { $sum: { $ifNull: ["$onAccountPaisa", 0] } },
           cardPaisa: { $sum: { $cond: [{ $eq: ["$paymentMethod", "card"] }, "$totalPaisa", 0] } },
           onlinePaisa: { $sum: { $cond: [{ $eq: ["$paymentMethod", "online"] }, "$totalPaisa", 0] } },
           oversoldBills: { $sum: { $cond: ["$negativeOverride", 1, 0] } },
@@ -75,6 +77,7 @@ const totalsFor = async (start, end) => {
     cashPaisa: s?.cashPaisa || 0,
     cardPaisa: s?.cardPaisa || 0,
     onlinePaisa: s?.onlinePaisa || 0,
+    accountPaisa: s?.accountPaisa || 0,
     returns: r?.returns || 0,
     refundsPaisa,
     netSalesPaisa,

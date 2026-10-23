@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import { FaPlus, FaTruck } from "react-icons/fa";
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Page, PageHeader } from "../../../components/ui";
-import { pharmacyGet, pharmacyPost, pharmacyPut, errorText } from "../api";
+import { pharmacyGet, pharmacyPost, pharmacyPut, errorText, money } from "../api";
 
 // Suppliers (distributors) purchases are entered against. Turned-off suppliers stay
 // on old purchases but can't be chosen for new ones.
@@ -108,7 +109,8 @@ const PharmacySuppliers = () => {
               <li key={s._id} className="flex flex-col gap-3 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="flex items-center gap-2 font-medium text-slate-900">
-                    {s.name} {!s.active && <Badge>Turned off</Badge>}
+                    <Link to={`/pharmacy/suppliers/${s._id}`} className="text-primary-700 underline">{s.name}</Link> {!s.active && <Badge>Turned off</Badge>}
+                    {s.balancePaisa > 0 && <Badge tone="warning">We owe {money(s.balancePaisa)}</Badge>}
                   </p>
                   <p className="truncate text-sm text-slate-600">{[s.phone, s.address, s.notes].filter(Boolean).join(" · ") || " "}</p>
                 </div>

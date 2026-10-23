@@ -19,6 +19,10 @@ const PharmacySale = lazy(() => import("./pages/PharmacySale.jsx"));
 const PharmacyReturns = lazy(() => import("./pages/PharmacyReturns.jsx"));
 const PharmacyReports = lazy(() => import("./pages/PharmacyReports.jsx"));
 const PharmacyShifts = lazy(() => import("./pages/PharmacyShifts.jsx"));
+const PharmacyCustomers = lazy(() => import("./pages/PharmacyCustomers.jsx"));
+const PharmacyCustomer = lazy(() => import("./pages/PharmacyCustomer.jsx"));
+const PharmacySupplier = lazy(() => import("./pages/PharmacySupplier.jsx"));
+const PharmacyLabels = lazy(() => import("./pages/PharmacyLabels.jsx"));
 
 export const pharmacyRoutes = ({ owner = false, canManage = false, canReport = false }) => [
   <Route key="home" path="/pharmacy" element={<PharmacyHome />} />,
@@ -26,12 +30,16 @@ export const pharmacyRoutes = ({ owner = false, canManage = false, canReport = f
   <Route key="shift" path="/pharmacy/shift" element={<PharmacyShift />} />,
   <Route key="sale" path="/pharmacy/sales/:id" element={<PharmacySale />} />,
   <Route key="returns" path="/pharmacy/returns" element={<PharmacyReturns />} />,
+  <Route key="customers" path="/pharmacy/customers" element={<PharmacyCustomers />} />,
+  <Route key="customer" path="/pharmacy/customers/:id" element={<PharmacyCustomer />} />,
   <Route key="items" path="/pharmacy/items" element={<PharmacyItems />} />,
   <Route key="item" path="/pharmacy/items/:id" element={<PharmacyItem />} />,
   <Route key="stock" path="/pharmacy/stock" element={<PharmacyStock />} />,
   ...(canManage || owner
     ? [
         <Route key="suppliers" path="/pharmacy/suppliers" element={<PharmacySuppliers />} />,
+        <Route key="supplier" path="/pharmacy/suppliers/:id" element={<PharmacySupplier />} />,
+        <Route key="labels" path="/pharmacy/labels" element={<PharmacyLabels />} />,
         <Route key="purchases" path="/pharmacy/purchases" element={<PharmacyPurchases />} />,
         <Route key="purchase-new" path="/pharmacy/purchases/new" element={<PharmacyPurchaseNew />} />,
         <Route key="purchase" path="/pharmacy/purchases/:id" element={<PharmacyPurchaseDetail />} />,

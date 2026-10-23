@@ -53,7 +53,7 @@ const PharmacyHome = () => {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatTile label="Net sales" value={money(t.netSalesPaisa)} hint={`${t.bills} bills${t.refundsPaisa ? ` · ${money(t.refundsPaisa)} refunded` : ""}`} to="/pharmacy/reports" />
             {t.profitPaisa !== undefined && <StatTile label="Profit" value={money(t.profitPaisa)} hint={t.netSalesPaisa ? `${Math.round((t.profitPaisa / t.netSalesPaisa) * 100)}% of sales` : " "} />}
-            <StatTile label="Cash" value={money(t.cashPaisa)} hint={`Card ${money(t.cardPaisa)} · Online ${money(t.onlinePaisa)}`} />
+            <StatTile label="Cash" value={money(t.cashPaisa)} hint={`Card ${money(t.cardPaisa)} · Online ${money(t.onlinePaisa)}${t.accountPaisa ? ` · Khata ${money(t.accountPaisa)}` : ""}`} />
             <StatTile label="Discounts given" value={money(t.discountPaisa)} hint={t.oversoldBills ? `${t.oversoldBills} bills sold beyond stock` : " "} tone={t.oversoldBills ? "warning" : undefined} />
           </div>
         </section>

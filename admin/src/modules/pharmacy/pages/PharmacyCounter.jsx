@@ -9,6 +9,7 @@ import { linePrice, cashSuggestions } from "../pricing";
 import { openReceiptWindow, printSaleReceipt, shopNameOf } from "../receipt";
 import { usePharmacyAccess } from "../useAccess";
 import OpenShift from "../components/OpenShift";
+import CustomerPicker from "../components/CustomerPicker";
 
 // The sales counter. Find items by name, salt or a scanned barcode; sell full
 // packs or loose units; take cash with the change worked out; print the bill.
@@ -16,7 +17,7 @@ import OpenShift from "../components/OpenShift";
 // The bill being made is kept on this computer until it's paid, with one request id:
 // if the connection drops after paying, paying again never charges twice.
 const CART_KEY = "pharmacy.counterCart";
-const emptyCart = () => ({ lines: [], discount: "", method: "cash", cash: "", customerName: "", customerPhone: "", requestId: newRequestId() });
+const emptyCart = () => ({ lines: [], discount: "", method: "cash", cash: "", customer: null, requestId: newRequestId() });
 const readCart = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(CART_KEY) || "null");
@@ -143,9 +144,13 @@ const PharmacyCounter = () => {
   const subtotal = useMemo(() => cart.lines.reduce((s, l) => s + linePrice(l, l.qtyUnits), 0), [cart.lines]);
   const discount = toPaisa(cart.discount);
   const total = subtotal - (discount || 0);
-  const cashPaisa = cart.method === "cash" ? (cart.cash.trim() ? toPaisa(cart.cash) : total) : total;
-  const change = cashPaisa !== null ? cashPaisa - total : null;
-  const canPay = cart.lines.length > 0 && discount !== null && total >= 0 && cashPaisa !== null && change >= 0 && !busy;
+// Cash: handed over (empty: exact). Khata: paid now (empty: nothing), the rest on the account.
+  const onKhata = cart.method === "account";
+  const cashPaisa = cart.method === "cash" ? (cart.cash.trim() ? toPaisa(cart.cash) : total) : onKhata ? (cart.cash.trim() ? toPaisa(cart.cash) : 0) : total;
+  const change = cashPaisa !== null && !onKhata ? cashPaisa - total : 0;
+  const khataPaisa = onKhata && cashPaisa !== null ? total - cashPaisa : 0;
+  const canPay =
+    cart.lines.length > 0 && discount !== null && total >= 0 && cashPaisa !== null && change >= 0 && (!onKhata || (cart.customer && khataPaisa >= 0)) && !busy;
 
   const pay = useCallback(
     async ({ allowNegative = false, managerApproval } = {}) => {
@@ -163,10 +168,9 @@ const PharmacyCounter = () => {
           items: cart.lines.map((l) => ({ productId: l.productId, qtyUnits: l.qtyUnits })),
           discountPaisa: discount || 0,
           paymentMethod: cart.method,
-          ...(cart.method === "cash" && { cashReceivedPaisa: cashPaisa }),
+          ...((cart.method === "cash" || onKhata) && { cashReceivedPaisa: cashPaisa }),
+          ...(cart.customer && { customerId: cart.customer._id }),
           expectedTotalPaisa: total,
-          customerName: cart.customerName,
-          customerPhone: cart.customerPhone,
           requestId: cart.requestId,
           ...(allowNegative && { allowNegative: true }),
           ...(managerApproval && { managerApproval }),
@@ -190,7 +194,7 @@ const PharmacyCounter = () => {
         } else if (body?.code === "no_shift") {
           setShift(null);
           toast.error(body.message);
-        } else if (body?.code === "approval_refused") {
+        } else if (body?.code === "approval_refused" || body?.code === "credit_limit") {
           toast.error(body.message);
         } else if (!e?.response) {
           toast.error("Couldn't reach the server. Press Pay again: the bill won't be charged twice.");
@@ -201,7 +205,7 @@ const PharmacyCounter = () => {
         setBusy(false);
       }
     },
-    [canPay, cart, discount, cashPaisa, total, shopName]
+    [canPay, cart, discount, cashPaisa, total, shopName, onKhata]
   );
 
   // Keyboard: F9 pays, F2 goes to search
@@ -252,7 +256,7 @@ const PharmacyCounter = () => {
             ? lines.map((l) => (l.productId === item.productId ? { ...l, qtyUnits: l.qtyUnits + item.qtyUnits } : l))
             : [...lines, { ...cartProduct(products[i]), qtyUnits: item.qtyUnits }];
         });
-        return { ...c, lines, customerName: c.customerName || bill.label };
+        return { ...c, lines };
       });
       setHeld(null);
       if (products.some((p) => !p)) toast.warn("An item in the held bill is no longer sold and was left out");
@@ -412,8 +416,22 @@ const PharmacyCounter = () => {
               { value: "cash", label: "Cash" },
               { value: "card", label: "Card" },
               { value: "online", label: "Online" },
+              { value: "account", label: "Khata" },
             ]}
           />
+          {onKhata && (
+            <>
+              <Field label="Paid now (Rs)" htmlFor="co-paidnow" className="mt-3" hint="Empty: all on the khata" error={cashPaisa === null ? "Enter an amount" : khataPaisa < 0 ? "More than the bill" : undefined}>
+                <Input id="co-paidnow" inputMode="decimal" value={cart.cash} onChange={(e) => update({ cash: e.target.value })} />
+              </Field>
+              {!cart.customer && <p className="mt-2 text-sm text-amber-800">Choose the customer below.</p>}
+              {cart.customer && khataPaisa > 0 && (
+                <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 font-semibold text-amber-900" data-testid="counter-khata">
+                  {money(khataPaisa)} on {cart.customer.name}’s khata
+                </p>
+              )}
+            </>
+          )}
           {cart.method === "cash" && (
             <>
               <Field label="Cash received (Rs)" htmlFor="co-cash" className="mt-3" hint="Empty: exact amount" error={cashPaisa === null ? "Enter an amount" : change < 0 ? "Less than the total" : undefined}>
@@ -433,13 +451,9 @@ const PharmacyCounter = () => {
               )}
             </>
           )}
-          <details className="mt-3 text-sm">
-            <summary className="cursor-pointer text-slate-600">Customer (optional)</summary>
-            <div className="mt-2 space-y-2">
-              <Input aria-label="Customer name" placeholder="Name" value={cart.customerName} onChange={(e) => update({ customerName: e.target.value })} maxLength={80} />
-              <Input aria-label="Customer phone" placeholder="Phone" value={cart.customerPhone} onChange={(e) => update({ customerPhone: e.target.value })} maxLength={30} />
-            </div>
-          </details>
+          <div className="mt-3">
+            <CustomerPicker value={cart.customer} onChange={(customer) => update({ customer })} />
+          </div>
           <Button variant="primary" size="lg" className="mt-4 w-full" onClick={() => pay()} loading={busy} disabled={!canPay}>
             Pay {money(Math.max(0, total))} (F9)
           </Button>

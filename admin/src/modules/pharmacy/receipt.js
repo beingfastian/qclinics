@@ -36,7 +36,7 @@ const qtyText = (line) => {
   }
   return `${line.qtyUnits} ${line.unitName || ""}`;
 };
-const METHOD = { cash: "Cash", card: "Card", online: "Online" };
+const METHOD = { cash: "Cash", card: "Card", online: "Online", account: "Paid now" };
 
 const print = (win, title, body) => {
   win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${STYLE}</style></head><body>${body}</body></html>`);
@@ -63,6 +63,7 @@ export const printSaleReceipt = (sale, shopName, win = openReceiptWindow()) => {
     ${row("Total", money(sale.totalPaisa), "big")}
     ${row(METHOD[sale.paymentMethod] || "Paid", money(sale.cashReceivedPaisa))}
     ${sale.changePaisa ? row("Change", money(sale.changePaisa)) : ""}
+    ${sale.onAccountPaisa ? row("On khata", money(sale.onAccountPaisa), "big") : ""}
     <hr>
     <div class="foot">Thank you. Keep this bill for returns.</div>`
   );
@@ -72,6 +73,7 @@ export const printSaleReceipt = (sale, shopName, win = openReceiptWindow()) => {
 export const printReturnReceipt = (ret, shopName, win = openReceiptWindow()) => {
   if (!win || win.closed) return false;
   const lines = ret.items.map((l) => row(`${l.name} x ${l.qtyUnits}`, money(l.refundPaisa), "sub")).join("");
+  const refundLabel = ret.refundTo === "account" ? "Off the khata" : "Refund";
   print(
     win,
     `Return ${ret.returnNo}`,
@@ -79,7 +81,7 @@ export const printReturnReceipt = (ret, shopName, win = openReceiptWindow()) => 
     <div class="c">Return ${esc(ret.returnNo)}${ret.saleNo ? ` · bill ${esc(ret.saleNo)}` : ""}</div>
     <div class="c sub">${esc(when(ret.createdAt))} · ${esc(ret.by?.name || "")}</div>
     <hr>${lines}<hr>
-    ${row("Refund", money(ret.totalRefundPaisa), "big")}`
+    ${row(refundLabel, money(ret.totalRefundPaisa), "big")}`
   );
   return true;
 };

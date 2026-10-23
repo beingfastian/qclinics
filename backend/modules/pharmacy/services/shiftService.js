@@ -1,8 +1,10 @@
 // Shifts: each person at the counter opens a shift with the cash in the drawer and
 // closes it by counting the cash. The difference from what should be there (opening
-// + cash sales - cash refunds) is recorded, so a short drawer shows up the same day.
+// + cash in - cash out, see shiftTotals) is recorded, so a short drawer shows up the
+// same day.
 import mongoose from "mongoose";
 import { shiftModel, saleModel, returnModel, actorKey } from "../models/salesModels.js";
+import { customerEntryModel, supplierPaymentModel } from "../models/khataModels.js";
 import { nextNumber } from "../models/stockModels.js";
 import { PharmacyError, notFound } from "../http.js";
 import { isDuplicateKey } from "../../../lib/transactions.js";
@@ -19,31 +21,68 @@ export const requireShift = async (actor) => {
   return shift;
 };
 
-// Sales and refunds of one shift, by payment method
+// Everything that went through one shift, and the cash it moved through the drawer:
+//   in:  cash bills, cash paid now on account bills, customers paying their khata in cash
+//   out: cash refunds, suppliers paid from the drawer
 export const shiftTotals = async (shiftId) => {
-  const [sales, returns] = await Promise.all([
+  const id = String(shiftId);
+  const [sales, returns, receipts, paidOut] = await Promise.all([
     saleModel.aggregate([
-      { $match: { shiftId: String(shiftId) } },
-      { $group: { _id: "$paymentMethod", count: { $sum: 1 }, total: { $sum: "$totalPaisa" }, discount: { $sum: "$discountPaisa" }, cost: { $sum: "$costPaisa" } } },
+      { $match: { shiftId: id } },
+      {
+        $group: {
+          _id: "$paymentMethod",
+          count: { $sum: 1 },
+          total: { $sum: "$totalPaisa" },
+          discount: { $sum: "$discountPaisa" },
+          cost: { $sum: "$costPaisa" },
+          cashNow: { $sum: "$cashReceivedPaisa" },
+          onAccount: { $sum: "$onAccountPaisa" },
+        },
+      },
     ]),
-    returnModel.aggregate([{ $match: { shiftId: String(shiftId) } }, { $group: { _id: null, count: { $sum: 1 }, total: { $sum: "$totalRefundPaisa" }, cost: { $sum: "$costPaisa" } } }]),
+    returnModel.aggregate([
+      { $match: { shiftId: id } },
+      { $group: { _id: { $ifNull: ["$refundTo", "cash"] }, count: { $sum: 1 }, total: { $sum: "$totalRefundPaisa" }, cost: { $sum: "$costPaisa" } } },
+    ]),
+    customerEntryModel.aggregate([{ $match: { shiftId: id, type: "payment" } }, { $group: { _id: "$method", total: { $sum: { $multiply: ["$amountPaisa", -1] } } } }]),
+    supplierPaymentModel.aggregate([{ $match: { shiftId: id, fromDrawer: true } }, { $group: { _id: null, total: { $sum: "$amountPaisa" } } }]),
   ]);
-  const by = Object.fromEntries(sales.map((s) => [s._id, s]));
-  const salesPaisa = sales.reduce((sum, s) => sum + s.total, 0);
-  const refundsPaisa = returns[0]?.total || 0;
+  const by = Object.fromEntries(sales.map((x) => [x._id, x]));
+  const back = Object.fromEntries(returns.map((x) => [x._id, x]));
+  const got = Object.fromEntries(receipts.map((x) => [x._id, x.total]));
+  const salesPaisa = sales.reduce((sum, x) => sum + x.total, 0);
+  const refundsPaisa = back.cash?.total || 0;
+  const accountReturnsPaisa = back.account?.total || 0;
+  const cashSalesPaisa = (by.cash?.total || 0) + (by.account?.cashNow || 0);
+  const khataCashPaisa = got.cash || 0;
+  const supplierPaidPaisa = paidOut[0]?.total || 0;
+  const returnCost = returns.reduce((sum, x) => sum + x.cost, 0);
   return {
-    salesCount: sales.reduce((sum, s) => sum + s.count, 0),
+    salesCount: sales.reduce((sum, x) => sum + x.count, 0),
     salesPaisa,
-    cashSalesPaisa: by.cash?.total || 0,
+    cashSalesPaisa,
     cardSalesPaisa: by.card?.total || 0,
     onlineSalesPaisa: by.online?.total || 0,
-    discountPaisa: sales.reduce((sum, s) => sum + s.discount, 0),
-    returnsCount: returns[0]?.count || 0,
-    refundsPaisa, // refunds are paid in cash
+    onAccountPaisa: by.account?.onAccount || 0,
+    discountPaisa: sales.reduce((sum, x) => sum + x.discount, 0),
+    returnsCount: returns.reduce((sum, x) => sum + x.count, 0),
+    refundsPaisa, // paid back in cash
+    accountReturnsPaisa, // taken off a khata
+    khataCashPaisa,
+    khataCardPaisa: got.card || 0,
+    khataOnlinePaisa: got.online || 0,
+    supplierPaidPaisa,
+    cashInPaisa: cashSalesPaisa + khataCashPaisa,
+    cashOutPaisa: refundsPaisa + supplierPaidPaisa,
     // Profit is only shown to those who may see it (publicShift)
-    profitPaisa: salesPaisa - sales.reduce((sum, s) => sum + s.cost, 0) - (refundsPaisa - (returns[0]?.cost || 0)),
+    profitPaisa: salesPaisa - sales.reduce((sum, x) => sum + x.cost, 0) - (refundsPaisa + accountReturnsPaisa - returnCost),
   };
 };
+
+// What the drawer should hold (shifts closed before khata existed have no cashIn/Out)
+export const expectedCash = (shift, t) =>
+  shift.openingCashPaisa + (t.cashInPaisa ?? t.cashSalesPaisa) - (t.cashOutPaisa ?? t.refundsPaisa);
 
 const publicShift = (shift, totals, actor) => {
   const t = totals && { ...totals };
@@ -59,7 +98,7 @@ const publicShift = (shift, totals, actor) => {
     countedCashPaisa: shift.countedCashPaisa,
     differencePaisa: shift.differencePaisa,
     closeNote: shift.closeNote,
-    ...(t && { totals: t, expectedCashPaisa: shift.openingCashPaisa + t.cashSalesPaisa - t.refundsPaisa }),
+    ...(t && { totals: t, expectedCashPaisa: expectedCash(shift, t) }),
   };
 };
 
@@ -103,7 +142,7 @@ export const closeShift = async ({ countedCashPaisa, note }, actor) => {
     .lean();
   if (!closing) throw noShift();
   const totals = await shiftTotals(shift._id);
-  const expectedCashPaisa = shift.openingCashPaisa + totals.cashSalesPaisa - totals.refundsPaisa;
+  const expectedCashPaisa = expectedCash(shift, totals);
   const closed = await shiftModel
     .findByIdAndUpdate(shift._id, { $set: { totals, expectedCashPaisa, differencePaisa: countedCashPaisa - expectedCashPaisa } }, { new: true })
     .lean();

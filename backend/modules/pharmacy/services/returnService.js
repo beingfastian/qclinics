@@ -1,4 +1,5 @@
-// Returns, refunded in cash from the shift's drawer. One save (a transaction).
+// Returns, refunded in cash from the shift's drawer, or taken off the customer's
+// khata when the bill was sold on account. One save (a transaction).
 //
 // With a bill: lines of that sale, at the price the customer paid (their share of
 // the bill discount taken off), never more than was sold; the stock goes back to
@@ -14,6 +15,7 @@ import { nextNumber } from "../models/stockModels.js";
 import { putBack, undoStock } from "./stockService.js";
 import { linePrice } from "./pricing.js";
 import { requireShift, touchShift } from "./shiftService.js";
+import { creditAccount, undoAccount } from "./khataService.js";
 import { PharmacyError, notFound } from "../http.js";
 import { can } from "../permissions.js";
 import { inTransaction, isDuplicateKey, supportsTransactions } from "../../../lib/transactions.js";
@@ -94,6 +96,7 @@ export const createReturn = async (input, actor) => {
     });
   }
   const totalRefundPaisa = lines.reduce((sum, l) => sum + l.refundPaisa, 0);
+  const toAccount = Boolean(sale?.paymentMethod === "account" && sale.customerId);
 
   await returnModel.init();
   const _id = new mongoose.Types.ObjectId();
@@ -113,6 +116,8 @@ export const createReturn = async (input, actor) => {
             by: actor,
             ...(sale && { saleId: String(sale._id), saleNo: sale.saleNo }),
             withoutBill,
+            refundTo: toAccount ? "account" : "cash",
+            ...(toAccount && { customerId: sale.customerId }),
             items: lines.map((l) => ({
               productId: l.line?.productId || String(l.product._id),
               name: l.line?.name || l.product.name,
@@ -154,6 +159,7 @@ export const createReturn = async (input, actor) => {
         costPaisa += Math.round(lineCost);
       }
       set.costPaisa = costPaisa;
+      if (toAccount && totalRefundPaisa > 0) await creditAccount({ customerId: sale.customerId, amountPaisa: totalRefundPaisa, ref, by: actor }, session);
       return returnModel.findByIdAndUpdate(_id, { $set: set }, { new: true, session }).lean();
     });
     return { return: publicReturn(saved, actor), repeated: false };
@@ -164,6 +170,7 @@ export const createReturn = async (input, actor) => {
     }
     if (!(await supportsTransactions())) {
       await undoStock(_id);
+      await undoAccount(_id);
       for (const l of counted) {
         await saleModel.updateOne({ _id: sale._id, "items._id": l.line._id }, { $inc: { "items.$.returnedUnits": -l.qtyUnits, refundedPaisa: -l.refundPaisa } });
       }

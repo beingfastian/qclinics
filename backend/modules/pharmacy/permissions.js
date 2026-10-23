@@ -15,6 +15,7 @@ export const PERMISSIONS = {
   manageStock: ["manager"],
   overrideNegativeStock: ["manager"],
   giveAnyDiscount: ["manager"],
+  manageCredit: ["manager"], // credit limits, selling beyond them, supplier payments
   viewProfit: ["manager"],
   viewReports: ["manager"],
 };

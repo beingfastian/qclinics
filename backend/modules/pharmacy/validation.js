@@ -155,13 +155,14 @@ export const shiftListSchema = z.object({ limit: limitQuery, cursor: z.string().
 export const createSaleSchema = z.object({
   items: cartItems,
   discountPaisa: paisa.default(0),
-  paymentMethod: z.enum(["cash", "card", "online"]).default("cash"),
+  paymentMethod: z.enum(["cash", "card", "online", "account"]).default("cash"),
   cashReceivedPaisa: paisa.optional(),
   expectedTotalPaisa: paisa.optional(),
   customerName: text(80).default(""),
   customerPhone: text(30).default(""),
   allowNegative: z.boolean().default(false),
   managerApproval: z.object({ email: z.string().trim().max(120), password: z.string().max(100) }).optional(),
+  customerId: objectId.optional(),
   requestId,
 });
 export const saleListSchema = z.object({ shiftId: objectId.optional(), limit: limitQuery, cursor: z.string().max(100).optional() });
@@ -197,4 +198,40 @@ export const reportRangeSchema = z.object({ from: isoDay, to: isoDay });
 export const itemsReportSchema = reportRangeSchema.extend({
   sort: z.enum(["revenue", "units", "profit"]).default("revenue"),
   limit: z.coerce.number().int().min(1).max(1000).default(200),
+});
+
+// --- Khata ---
+const creditLimit = paisa.nullable();
+const customerFields = z.object({
+  name: z.string().trim().min(1, "Enter the customer's name").max(80),
+  phone: text(30),
+  address: text(200),
+  notes: text(300),
+  creditLimitPaisa: creditLimit,
+  active: z.boolean(),
+});
+export const createCustomerSchema = customerFields.extend({
+  phone: text(30).default(""),
+  address: text(200).default(""),
+  notes: text(300).default(""),
+  creditLimitPaisa: creditLimit.optional(),
+  active: z.boolean().default(true),
+});
+export const updateCustomerSchema = customerFields.partial().refine((value) => Object.keys(value).length > 0, "Nothing to change");
+export const customerListSchema = z.object({ q: text(60).optional(), owing: boolQuery, limit: limitQuery });
+export const statementSchema = z.object({ limit: limitQuery, cursor: z.string().max(100).optional() });
+export const customerPaymentSchema = z.object({
+  amountPaisa: paisa.refine((v) => v > 0, "Enter the amount"),
+  method: z.enum(["cash", "card", "online"]).default("cash"),
+  note: text(200).default(""),
+  requestId,
+});
+export const supplierPaymentSchema = z.object({
+  amountPaisa: paisa.refine((v) => v > 0, "Enter the amount"),
+  method: z.enum(["cash", "bank", "cheque", "online"]).default("cash"),
+  reference: text(60).default(""),
+  note: text(200).default(""),
+  paidOn: optionalDate,
+  fromDrawer: z.boolean().default(false),
+  requestId,
 });

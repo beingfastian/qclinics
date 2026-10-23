@@ -5,7 +5,7 @@ import { FaCashRegister } from "react-icons/fa";
 import { Badge, Button, Card, CardHeader, Field, Input, Page, PageHeader, useDialog } from "../../../components/ui";
 import { pharmacyGet, pharmacyPost, errorText, money, toPaisa } from "../api";
 
-const METHOD = { cash: "Cash", card: "Card", online: "Online" };
+const METHOD = { cash: "Cash", card: "Card", online: "Online", account: "Khata" };
 const time = (d) => new Date(d).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 
 // The cashier's own shift: what was sold, what the drawer should hold, and the
@@ -150,10 +150,16 @@ const Summary = ({ shift }) => {
   const rows = [
     ["Opening cash", shift.openingCashPaisa],
     [`Cash sales (${t.salesCount || 0} bills in all)`, t.cashSalesPaisa],
-    ["Card", t.cardSalesPaisa],
-    ["Online", t.onlineSalesPaisa],
-    [`Refunds (${t.returnsCount || 0})`, -(t.refundsPaisa || 0)],
+    ...(t.khataCashPaisa ? [["Khata payments in cash", t.khataCashPaisa]] : []),
+    [`Cash refunds (${t.returnsCount || 0} returns)`, -(t.refundsPaisa || 0)],
+    ...(t.supplierPaidPaisa ? [["Paid to suppliers from the drawer", -t.supplierPaidPaisa]] : []),
   ];
+  const notCash = [
+    ["Card", (t.cardSalesPaisa || 0) + (t.khataCardPaisa || 0)],
+    ["Online", (t.onlineSalesPaisa || 0) + (t.khataOnlinePaisa || 0)],
+    ["Put on khata", t.onAccountPaisa || 0],
+    ["Taken off khata (returns)", t.accountReturnsPaisa || 0],
+  ].filter(([, v]) => v);
   return (
     <dl className="space-y-1 text-sm">
       {rows.map(([label, value]) => (
@@ -166,6 +172,11 @@ const Summary = ({ shift }) => {
         <div className="flex justify-between">
           <dt className="text-slate-600">Profit</dt>
           <dd className="tabular-nums">{money(t.profitPaisa)}</dd>
+        </div>
+      )}
+      {notCash.length > 0 && (
+        <div className="border-t border-slate-100 pt-2 text-xs text-slate-500">
+          Not in the drawer: {notCash.map(([label, value]) => `${label} ${money(value)}`).join(" · ")}
         </div>
       )}
       <div className="flex justify-between border-t border-slate-100 pt-2 text-base">

@@ -60,7 +60,8 @@ const saleItemSchema = new mongoose.Schema({
   returnedUnits: { type: Number, default: 0 },
 });
 
-export const PAYMENT_METHODS = ["cash", "card", "online"];
+// account: on the customer's khata (any cash paid now is cashReceivedPaisa)
+export const PAYMENT_METHODS = ["cash", "card", "online", "account"];
 
 const saleSchema = new mongoose.Schema(
   {
@@ -77,6 +78,8 @@ const saleSchema = new mongoose.Schema(
     changePaisa: { type: Number, default: 0 },
     customerName: { type: String, default: "" },
     customerPhone: { type: String, default: "" },
+    customerId: { type: String }, // an account customer
+    onAccountPaisa: { type: Number, default: 0 }, // put on their khata
     // Sold beyond the stock entered: the manager who allowed it
     negativeOverride: { type: Boolean },
     approvedBy: { type: actorSchema },
@@ -89,6 +92,7 @@ saleSchema.index({ saleNo: 1 }, { unique: true });
 saleSchema.index({ requestId: 1 }, { unique: true, partialFilterExpression: { requestId: { $type: "string" } } });
 saleSchema.index({ shiftId: 1, createdAt: -1 });
 saleSchema.index({ createdAt: -1, _id: -1 });
+saleSchema.index({ customerId: 1, createdAt: -1 }, { partialFilterExpression: { customerId: { $type: "string" } } });
 
 export const saleModel = mongoose.models.pharmacySale || mongoose.model("pharmacySale", saleSchema);
 
@@ -133,6 +137,9 @@ const returnSchema = new mongoose.Schema(
       },
     ],
     totalRefundPaisa: { type: Number, required: true },
+    // cash from the drawer, or taken off the customer's khata (a bill sold on account)
+    refundTo: { type: String, enum: ["cash", "account"], default: "cash" },
+    customerId: { type: String },
     costPaisa: { type: Number, default: 0 },
     reason: { type: String, default: "" },
     requestId: { type: String },
