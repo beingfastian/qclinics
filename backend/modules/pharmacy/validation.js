@@ -187,3 +187,14 @@ export const createReturnSchema = z
     requestId,
   })
   .refine((r) => r.items.every((i) => (r.saleId ? i.saleItemId : i.productId)), "Each line needs the bill line (with a bill) or the item (without)");
+
+// --- Reports: local days "yyyy-mm-dd", both included ---
+const isoDay = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-10-23")
+  .refine((d) => !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().startsWith(d), "Not a real date");
+export const reportRangeSchema = z.object({ from: isoDay, to: isoDay });
+export const itemsReportSchema = reportRangeSchema.extend({
+  sort: z.enum(["revenue", "units", "profit"]).default("revenue"),
+  limit: z.coerce.number().int().min(1).max(1000).default(200),
+});
