@@ -31,11 +31,16 @@ import {
   FaTruck,
   FaTruckLoading,
   FaExclamationTriangle,
+  FaUndo,
+  FaClock,
 } from "react-icons/fa";
 
 // The pharmacy's pages. perm: only staff whose role has it (the owner sees all)
 const pharmacyItems = [
   { path: "/pharmacy", icon: <FaPrescriptionBottleAlt />, label: "Pharmacy", end: true },
+  { path: "/pharmacy/counter", icon: <FaCashRegister />, label: "Counter" },
+  { path: "/pharmacy/returns", icon: <FaUndo />, label: "Returns" },
+  { path: "/pharmacy/shift", icon: <FaClock />, label: "My Shift" },
   { path: "/pharmacy/items", icon: <FaPills />, label: "Items" },
   { path: "/pharmacy/stock", icon: <FaExclamationTriangle />, label: "Stock Alerts" },
   { path: "/pharmacy/purchases", icon: <FaTruckLoading />, label: "Purchases", perm: "manageStock" },

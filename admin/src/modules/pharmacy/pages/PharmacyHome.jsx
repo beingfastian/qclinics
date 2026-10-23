@@ -13,6 +13,7 @@ const WHAT_YOU_CAN_DO = {
   returnWithoutBill: "Take returns without a bill",
   manageStock: "Manage medicines, purchases, suppliers and stock",
   overrideNegativeStock: "Sell stock that isn't entered yet (logged)",
+  giveAnyDiscount: "Give any discount (cashiers: up to 10%)",
   viewProfit: "See profit",
   viewReports: "See reports",
 };
@@ -46,7 +47,7 @@ const PharmacyHome = () => {
             </li>
           ))}
         </ul>
-        <p className="mt-4 text-sm text-slate-500">The sales counter and reports are being added next.</p>
+        <p className="mt-4 text-sm text-slate-500">The dashboard and reports are being added next.</p>
       </Card>
     </div>
   );
