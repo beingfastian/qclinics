@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import { FaEye, FaEyeSlash, FaListOl, FaFileMedical, FaChartBar } from "react-icons/fa";
 import BrandLogo from "../components/ui/BrandLogo";
-import { HOSPITAL_NAME, PRODUCT_TAGLINE } from "../config";
+import { HOSPITAL_LOGO, HOSPITAL_NAME, PRODUCT_TAGLINE } from "../config";
 import { AdminContext } from "../context/AdminContext";
 import { DoctorContext } from "../context/DoctorContext";
 import { LabContext } from "../context/LabContext";
@@ -74,7 +74,14 @@ const Login = () => {
           <div className="inline-block rounded-xl bg-white px-5 py-3">
             <BrandLogo size="lg" tagline />
           </div>
-          <p className="mt-3 text-sm text-primary-100">{HOSPITAL_NAME}</p>
+          {HOSPITAL_LOGO ? (
+            <div className="mt-6 flex w-fit items-center gap-3 rounded-xl bg-white p-3 pr-5">
+              <img src={HOSPITAL_LOGO} alt="" className="h-16 w-16 object-contain" />
+              <p className="text-base font-semibold text-slate-900">{HOSPITAL_NAME}</p>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-primary-100">{HOSPITAL_NAME}</p>
+          )}
         </div>
         <div>
           <p className="font-display text-4xl font-semibold leading-tight">{PRODUCT_TAGLINE}</p>
@@ -98,7 +105,10 @@ const Login = () => {
         <div className="w-full max-w-md">
           <div className="mb-8 lg:hidden">
             <BrandLogo size="lg" tagline />
-            <p className="mt-2 text-sm text-slate-500">{HOSPITAL_NAME}</p>
+            <p className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-700">
+              {HOSPITAL_LOGO && <img src={HOSPITAL_LOGO} alt="" className="h-10 w-10 object-contain" />}
+              {HOSPITAL_NAME}
+            </p>
           </div>
 
           <h1 className="text-2xl font-semibold text-slate-900">Sign in</h1>

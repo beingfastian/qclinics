@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { FaPrint, FaCheckCircle } from "react-icons/fa";
-import { HOSPITAL_ADDRESS, HOSPITAL_NAME, HOSPITAL_NAME_URDU, HOSPITAL_PHONE } from "../config";
+import { HOSPITAL_ADDRESS, HOSPITAL_LOGO, HOSPITAL_NAME, HOSPITAL_NAME_URDU, HOSPITAL_PHONE } from "../config";
 
 // The patient's copy: a small slip printed on 80mm thermal paper (what receptions
 // usually have) or any printer the browser's print dialog offers. It opens a
@@ -14,6 +14,8 @@ const HOSPITAL = {
   nameUrdu: HOSPITAL_NAME_URDU,
   address: HOSPITAL_ADDRESS,
   phone: HOSPITAL_PHONE,
+  // The print window is about:blank, so the logo needs this site's full address
+  logo: HOSPITAL_LOGO ? new URL(HOSPITAL_LOGO, window.location.origin).href : "",
 };
 
 const escapeHtml = (value) =>
@@ -36,6 +38,7 @@ const SLIP_STYLE = `
   span.ur { display: inline-block; letter-spacing: 0; text-transform: none; }
   .center { text-align: center; }
   .addr { text-align: center; font-size: 10px; margin-bottom: 6px; }
+  .logo { display: block; margin: 0 auto 2px; height: 16mm; }
   hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
   .type { text-align: center; font-weight: bold; text-transform: uppercase; margin: 4px 0; }
   .row { display: flex; justify-content: space-between; gap: 6px; margin: 3px 0; }
@@ -74,6 +77,7 @@ const writeAndPrint = async (win, title, bodyHtml) => {
 };
 
 const header = () => `
+  ${HOSPITAL.logo ? `<img class="logo" src="${escapeHtml(HOSPITAL.logo)}" alt="">` : ""}
   <h1>${escapeHtml(HOSPITAL.name)}</h1>
   ${HOSPITAL.nameUrdu ? `<div class="center ur">${escapeHtml(HOSPITAL.nameUrdu)}</div>` : ""}
   <div class="addr">${HOSPITAL.address ? `${escapeHtml(HOSPITAL.address)}<br>` : ""}Ph: ${escapeHtml(HOSPITAL.phone)}</div>

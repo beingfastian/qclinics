@@ -3,7 +3,7 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { FaWhatsapp, FaEnvelope, FaCheck, FaTimes, FaClock, FaFileAlt, FaHospital, FaSyncAlt } from "react-icons/fa";
 import { AdminContext } from "../../context/AdminContext";
-import { HOSPITAL_ADDRESS, HOSPITAL_NAME, HOSPITAL_NAME_URDU, HOSPITAL_PHONE, PRODUCT_NAME } from "../../config";
+import { HOSPITAL_ADDRESS, HOSPITAL_LOGO, HOSPITAL_NAME, HOSPITAL_NAME_URDU, HOSPITAL_PHONE, PRODUCT_NAME } from "../../config";
 import { Badge, Button, Card, Skeleton } from "../../components/ui";
 
 // Which services are connected for this hospital, in plain language.
@@ -110,6 +110,11 @@ const Settings = () => {
           <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-slate-500">Name</dt>
+              {HOSPITAL_LOGO && (
+                <dd>
+                  <img src={HOSPITAL_LOGO} alt={`${HOSPITAL_NAME} logo`} className="my-1 h-16 w-16 object-contain" />
+                </dd>
+              )}
               <dd className="font-medium text-slate-900">{HOSPITAL_NAME}</dd>
               {HOSPITAL_NAME_URDU && (
                 <dd lang="ur" dir="rtl" className="text-left text-slate-900">
