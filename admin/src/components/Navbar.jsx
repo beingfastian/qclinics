@@ -16,7 +16,7 @@ import {
   FaChevronDown,
 } from "react-icons/fa";
 import { assets } from "../assets/assets";
-import { HOSPITAL_NAME, PRODUCT_NAME } from "../config";
+import { HOSPITAL_LOGO, HOSPITAL_NAME, PRODUCT_NAME } from "../config";
 import { AdminContext } from "../context/AdminContext";
 import { DoctorContext } from "../context/DoctorContext";
 import { LabContext } from "../context/LabContext";
@@ -135,6 +135,7 @@ const Navbar = ({ onMenuClick }) => {
           <img src={assets.logo_mark} alt="" className="h-9 w-9 sm:hidden" />
           <BrandLogo size="sm" className="hidden sm:inline-flex" />
           <span aria-hidden="true" className="hidden h-8 w-px bg-slate-200 sm:block" />
+          {HOSPITAL_LOGO && <img src={HOSPITAL_LOGO} alt="" className="hidden h-9 w-9 shrink-0 object-contain sm:block" />}
           <p className="min-w-0 truncate text-sm font-medium text-slate-700">{HOSPITAL_NAME}</p>
         </div>
 
