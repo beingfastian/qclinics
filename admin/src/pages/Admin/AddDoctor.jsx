@@ -1,4 +1,5 @@
 import { useContext, useState } from "react";
+import { SPECIALITIES } from "../../specialities";
 import { useDialog } from "../../components/ui/Dialog";
 import ShareField, { isValidPercent } from "../../components/ShareField";
 import { AdminContext } from "../../context/AdminContext.jsx";
@@ -323,12 +324,9 @@ const AddDoctor = () => {
                       onChange={(e) => setSpeciality(e.target.value)}
                       className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent outline-none transition-all"
                     >
-                      <option value="General physician">General physician</option>
-                      <option value="Gynecologist">Gynecologist</option>
-                      <option value="Dermatologist">Dermatologist</option>
-                      <option value="Pediatricians">Pediatricians</option>
-                      <option value="Neurologist">Neurologist</option>
-                      <option value="Gastroenterologist">Gastroenterologist</option>
+                      {SPECIALITIES.map((spec) => (
+                        <option key={spec} value={spec}>{spec}</option>
+                      ))}
                     </select>
                   </div>
                   
