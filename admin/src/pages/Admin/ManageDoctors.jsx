@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState } from "react";
+import { SPECIALITIES, withCurrent } from "../../specialities";
 import { useDialog } from "../../components/ui/Dialog";
 import Avatar from "../../components/ui/Avatar";
 import ShareField from "../../components/ShareField";
@@ -18,10 +19,9 @@ const ManageDoctors = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const specialities = [
-    "General physician", "Gynecologist", "Dermatologist",
-    "Pediatricians", "Neurologist", "Gastroenterologist"
-  ];
+  // The usual list plus any speciality a doctor here already has
+  const specialities = [...new Set([...SPECIALITIES, ...doctors.map((d) => d.speciality).filter(Boolean)])];
+  const experienceOptions = [...Array(15)].map((_, i) => `${i + 1} Year${i > 0 ? "s" : ""}`);
 
   const daysOfWeek = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
@@ -404,7 +404,7 @@ const ManageDoctors = () => {
                   onChange={(e) => setEditingDoctor({...editingDoctor, speciality: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
                 >
-                  {specialities.map(spec => (
+                  {withCurrent(specialities, editingDoctor.speciality).map(spec => (
                     <option key={spec} value={spec}>{spec}</option>
                   ))}
                 </select>
@@ -416,10 +416,8 @@ const ManageDoctors = () => {
                   onChange={(e) => setEditingDoctor({...editingDoctor, experience: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
                 >
-                  {[...Array(15)].map((_, i) => (
-                    <option key={i + 1} value={`${i + 1} Year${i > 0 ? 's' : ''}`}>
-                      {i + 1} Year{i > 0 ? 's' : ''}
-                    </option>
+                  {withCurrent(experienceOptions, editingDoctor.experience).map((value) => (
+                    <option key={value} value={value}>{value === "-" ? "Not set" : value}</option>
                   ))}
                 </select>
               </div>
