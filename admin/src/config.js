@@ -1,8 +1,8 @@
 // Details of the hospital using this admin panel (VITE_HOSPITAL_* in admin/.env).
-// The default name is the current hospital (Haram Medical Complex).
+// The default name is a demo hospital (Simple Demo Hospital).
 const env = import.meta.env;
 
-export const HOSPITAL_NAME = env.VITE_HOSPITAL_NAME || "Haram Medical Complex (HMC)";
+export const HOSPITAL_NAME = env.VITE_HOSPITAL_NAME || "Simple Demo Hospital";
 // Optional: printed under the English name on slips
 export const HOSPITAL_NAME_URDU = env.VITE_HOSPITAL_NAME_URDU || "";
 export const HOSPITAL_ADDRESS = env.VITE_HOSPITAL_ADDRESS || "";

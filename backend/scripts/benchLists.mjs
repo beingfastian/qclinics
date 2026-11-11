@@ -58,7 +58,7 @@ const doctors = await doctorModel.insertMany(
     experience: `${5 + i} Years`,
     about: "Experienced consultant who sees patients for general and specialist care. ".repeat(4),
     fee: 1000 + i * 250,
-    address: { line1: "Haram Medical Complex", line2: "Main Road, City" },
+    address: { line1: "Simple Demo Hospital", line2: "Main Road, City" },
     date: Date.now(),
     timings: { start: "09:00", end: "17:00" },
     hospitalSharePercent: 30,
