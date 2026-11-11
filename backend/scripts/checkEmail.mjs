@@ -58,7 +58,7 @@ process.env.EMAIL_PORT = String(smtp.address().port);
 process.env.EMAIL_SECURE = "false";
 process.env.EMAIL_USER = "hospital@gmail.com";
 process.env.EMAIL_PASS = "app-password";
-process.env.EMAIL_FROM = '"Haram Medical Complex (HMC)" <hospital@gmail.com>';
+process.env.EMAIL_FROM = '"Simple Demo Hospital" <hospital@gmail.com>';
 
 const email = await import("../config/emailService.js");
 const { sendOTPEmail } = await import("../config/nodemailer.js");
