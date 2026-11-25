@@ -1,16 +1,13 @@
-// English / Urdu for the Qclinics website. Each language has its own address
-// (English "/", Urdu "/ur"), prerendered at build time and linked with hreflang,
-// so both can be found in search. Urdu is right-to-left in Nastaliq (index.css).
+// Text for the Qclinics website (English only). Keys stay in one place so copy is
+// easy to review. The queue screens (src/pages/queue) carry their own Urdu lines.
 // Only describe what the product really does today.
 import { createContext, useCallback, useContext, useEffect, useMemo } from "react";
 
 export const LANGUAGES = {
   en: { path: "/", dir: "ltr", locale: "en_PK" },
-  ur: { path: "/ur", dir: "rtl", locale: "ur_PK" },
 };
 
-// "/ur", "/ur/..." -> Urdu; everything else English
-export const langFromPath = (pathname = "/") => (/^\/ur(\/|$)/.test(pathname) ? "ur" : "en");
+export const langFromPath = () => "en";
 
 const STRINGS = {
   en: {
@@ -27,8 +24,6 @@ const STRINGS = {
     "nav.menu": "Menu",
     "nav.close": "Close menu",
     "nav.staff": "Staff sign in",
-    "lang.switch": "اردو",
-    "lang.switchLabel": "پڑھیں اردو میں",
     "action.demo": "Book a free demo",
     "action.demoShort": "Book a demo",
     "action.call": "Call us",
@@ -47,7 +42,7 @@ const STRINGS = {
     "mock.next": "Next",
     "mock.doctor": "Dr. Ahmed Raza · General physician",
     "mock.whatsapp": "WhatsApp to the patient",
-    "mock.message": "آپ کا ٹوکن نمبر 14 ہے۔ آپ سے پہلے 2 مریض ہیں، تقریباً 15 منٹ۔",
+    "mock.message": "Your token number is 14. There are 2 patients ahead of you, about 15 minutes.",
     "mock.track": "Follow your turn",
 
     "problems.title": "Sound familiar?",
@@ -114,107 +109,6 @@ const STRINGS = {
 
     "wa.demo": "Hello! I'd like a demo of {product} for our hospital.",
   },
-  ur: {
-    "meta.title": "Qclinics | پاکستان کے ہسپتالوں اور کلینکس کے لیے سافٹ ویئر",
-    "meta.description":
-      "ٹوکن قطار، ویٹنگ روم اسکرین، اردو میں واٹس ایپ یاد دہانیاں، لیب رپورٹس اور ڈاکٹرز کی آمدن: پاکستان کے ہسپتالوں اور کلینکس کے لیے ایک آسان نظام۔ مفت ڈیمو بُک کریں۔",
-    "notFound.title": "صفحہ نہیں ملا",
-    "notFound.text": "یہ صفحہ موجود نہیں۔ ہو سکتا ہے یہ کہیں اور منتقل ہو گیا ہو۔",
-    "notFound.home": "ہوم پیج پر جائیں",
-    "nav.features": "خصوصیات",
-    "nav.how": "طریقہ کار",
-    "nav.pakistan": "پاکستان کے لیے",
-    "nav.faq": "سوالات",
-    "nav.menu": "مینو",
-    "nav.close": "مینو بند کریں",
-    "nav.staff": "اسٹاف لاگ اِن",
-    "lang.switch": "English",
-    "lang.switchLabel": "Read in English",
-    "action.demo": "مفت ڈیمو بُک کریں",
-    "action.demoShort": "ڈیمو بُک کریں",
-    "action.call": "ہمیں کال کریں",
-    "action.callShort": "کال",
-    "action.email": "ای میل کریں",
-    "action.see": "دیکھیں یہ کیسے کام کرتا ہے",
-
-    "hero.kicker": "علاج، انتظار کے بغیر۔",
-    "hero.title": "ایسا ہسپتال سافٹ ویئر جو ویٹنگ روم کا رش ختم کر دے۔",
-    "hero.lead": "ٹوکن، لائیو باری، اردو میں واٹس ایپ یاد دہانیاں، لیب رپورٹس اور ڈاکٹرز کی آمدن: پاکستان کے ہسپتالوں اور کلینکس کے لیے ایک آسان نظام۔",
-    "hero.point1": "مریضوں کو کوئی ایپ انسٹال نہیں کرنی پڑتی",
-    "hero.point2": "کسی بھی کمپیوٹر، ٹیبلٹ یا فون پر چلتا ہے",
-    "hero.point3": "مریضوں کے لیے اردو اور انگریزی",
-    "mock.board": "ویٹنگ روم اسکرین",
-    "mock.now": "اب باری",
-    "mock.next": "اگلے",
-    "mock.doctor": "Dr. Ahmed Raza · General physician",
-    "mock.whatsapp": "مریض کو واٹس ایپ",
-    "mock.message": "آپ کا ٹوکن نمبر 14 ہے۔ آپ سے پہلے 2 مریض ہیں، تقریباً 15 منٹ۔",
-    "mock.track": "اپنی باری دیکھیں",
-
-    "problems.title": "کیا یہ مسائل جانے پہچانے ہیں؟",
-    "problems.p1": "بھرا ہوا ویٹنگ ہال، اور باری پر جھگڑے۔",
-    "problems.p2": "مریض وقت لے کر نہیں آتے، اور دوسرے گھنٹوں انتظار کرتے ہیں۔",
-    "problems.p3": "لیب رپورٹس ڈاکٹر تک پہنچتے پہنچتے گم ہو جاتی ہیں۔",
-    "problems.p4": "ہر مہینے کے آخر میں ڈاکٹرز کا حصہ ہاتھ سے حساب کرنا۔",
-
-    "features.title": "ریسپشن، ڈاکٹرز اور لیب کو جو کچھ چاہیے",
-    "features.lead": "ایک نظام، تین آسان لاگ اِن: ریسپشن، ڈاکٹرز اور لیب۔",
-    "f.queue.title": "لائیو ٹوکن قطار",
-    "f.queue.text": "ریسپشن اپوائنٹمنٹ اور واک اِن مریضوں کو ٹوکن دیتا ہے۔ ڈاکٹر اگلے مریض کو بلاتے ہیں اور ویٹنگ روم کی ٹی وی پر نمبر نظر آتا ہے۔",
-    "f.track.title": "مریض کے فون پر باری",
-    "f.track.text": "پرچی پر QR کوڈ اور واٹس ایپ لنک سے پتا چلتا ہے کہ آگے کتنے مریض ہیں، تاکہ گھر والے باہر انتظار کر سکیں۔",
-    "f.whatsapp.title": "اردو میں واٹس ایپ پیغامات",
-    "f.whatsapp.text": "وقت کی تصدیق، یاد دہانی اور ٹوکن کی اطلاع اردو یا انگریزی میں، صرف ان مریضوں کو جو اجازت دیں۔",
-    "f.appointments.title": "اپوائنٹمنٹ، واک اِن اور فالو اَپ",
-    "f.appointments.text": "فون نمبر سے مریض تلاش کر کے وقت دیں، آنے پر چیک اِن کریں، اور ڈاکٹر ایک کلک میں اگلی ملاقات طے کریں۔",
-    "f.lab.title": "ہسپتال کی اپنی لیب",
-    "f.lab.text": "ڈاکٹر ٹیسٹ لکھتے ہیں، لیب رپورٹ اپ لوڈ کرتی ہے، اور ڈاکٹر دیکھ کر منظور کرتے ہیں۔",
-    "f.earnings.title": "ڈاکٹرز کا حصہ اور منافع کی رپورٹس",
-    "f.earnings.text": "ہر ڈاکٹر کا حصہ ایک بار طے کریں۔ ہر مکمل وزٹ خود تقسیم ہوتا ہے، روزانہ، ہفتہ وار اور ماہانہ رپورٹس کے ساتھ۔",
-    "f.schedule.title": "ڈاکٹرز کے دن اور چھٹیاں",
-    "f.schedule.text": "بیٹھنے کے دن، اوقات اور چھٹیاں ایک جگہ۔ پورا دن آگے کریں یا منسوخ کریں تو مریضوں کو اطلاع ہو جاتی ہے۔",
-    "f.slips.title": "پرنٹ شدہ پرچیاں",
-    "f.slips.text": "ہسپتال کے نام کے ساتھ ٹوکن اور اپوائنٹمنٹ کی پرچیاں، کاؤنٹر کے کسی بھی پرنٹر کے لیے تیار۔",
-
-    "pk.title": "پاکستان کے ہسپتالوں کے کام کے طریقے کے مطابق",
-    "pk.p1": "مریض جو کچھ دیکھتے ہیں وہ اردو میں: پیغامات، پرچیاں اور ٹوکن کا صفحہ۔",
-    "pk.p2": "پہلے واٹس ایپ: نہ کوئی ایپ، نہ مریضوں کے لیے لاگ اِن۔",
-    "pk.p3": "پورا خاندان ایک ہی فون نمبر استعمال کر سکتا ہے۔ جن کے پاس فون نہیں انہیں پرنٹ ٹوکن ملتا ہے۔",
-    "pk.p4": "عام اینڈرائیڈ فونز اور کمزور انٹرنیٹ پر چلتا ہے، اور کنکشن ٹوٹنے پر خود دوبارہ کوشش کرتا ہے۔",
-    "pk.p5": "پاکستانی وقت، روپے، شناختی کارڈ اور مقامی فون نمبر پہلے سے شامل۔",
-
-    "how.title": "جلد شروع کریں",
-    "how.s1.title": "ہمیں اپنے ہسپتال کے بارے میں بتائیں",
-    "how.s1.text": "آپ کے ڈاکٹرز، ان کے دن اور فیس، اور وہ واٹس ایپ نمبر جو مریض جانتے ہیں۔",
-    "how.s2.title": "ہم آپ کی ٹیم کے ساتھ سیٹ اَپ کرتے ہیں",
-    "how.s2.text": "ہم آپ کے ڈاکٹرز شامل کرتے ہیں اور ریسپشن، ڈاکٹرز اور لیب کو استعمال سکھاتے ہیں۔",
-    "how.s3.title": "شروع کریں",
-    "how.s3.text": "پہلے دن سے مریضوں کو ٹوکن اور واٹس ایپ اطلاعات ملتی ہیں۔",
-
-    "faq.title": "ہسپتالوں کے عام سوالات",
-    "faq.q1": "کیا مریضوں کو کوئی ایپ انسٹال کرنی ہوگی؟",
-    "faq.a1": "نہیں۔ مریضوں کو واٹس ایپ پیغام اور باری دیکھنے کا لنک ملتا ہے۔ نہ کچھ ڈاؤن لوڈ کرنا، نہ سائن اَپ۔",
-    "faq.q2": "جن مریضوں کے پاس واٹس ایپ یا فون نہیں؟",
-    "faq.a2": "ریسپشن کسی بھی مریض کو، فون نمبر کے بغیر بھی، رجسٹر کر کے ٹوکن کی پرچی پرنٹ کر سکتا ہے۔ واٹس ایپ اختیاری ہے۔",
-    "faq.q3": "کون سا سامان چاہیے؟",
-    "faq.a3": "آپ کے موجودہ کمپیوٹر یا ٹیبلٹ، براؤزر اور انٹرنیٹ کے ساتھ۔ ویٹنگ روم کے لیے ٹی وی اور پرچی کے لیے پرنٹر اختیاری ہیں۔",
-    "faq.q4": "مریضوں کی معلومات کون دیکھ سکتا ہے؟",
-    "faq.a4": "صرف آپ کا اسٹاف لاگ اِن کر سکتا ہے، اور ہر ایک کو اتنا ہی نظر آتا ہے جتنا ضروری ہے: ڈاکٹرز کو اپنے مریض اور آمدن، لیب کو اپنی درخواستیں۔",
-    "faq.q5": "اس کی قیمت کیا ہے؟",
-    "faq.a5": "یہ ڈاکٹرز کی تعداد اور آپ کے سیٹ اَپ پر منحصر ہے۔ ہمیں پیغام بھیجیں، ہم آپ کے ہسپتال کے لیے قیمت بھیج دیں گے۔",
-    "faq.q6": "کیا یہ اردو میں ہے؟",
-    "faq.a6": "مریض جو کچھ دیکھتے ہیں وہ اردو اور انگریزی دونوں میں ہے۔ اسٹاف کی اسکرینز آسان انگریزی میں ہیں۔",
-
-    "cta.title": "اپنے ہسپتال میں چلتا ہوا دیکھیں",
-    "cta.text": "واٹس ایپ پر مفت ڈیمو بُک کریں۔ ہم آپ کے اپنے ڈاکٹرز کے ساتھ قطار، واٹس ایپ پیغامات اور رپورٹس دکھائیں گے۔",
-
-    "footer.about": "پاکستان کے ہسپتالوں اور کلینکس کے لیے ٹوکن قطار، واٹس ایپ یاد دہانیاں، لیب رپورٹس اور ڈاکٹرز کی آمدن۔",
-    "footer.links": "پروڈکٹ",
-    "footer.contact": "رابطہ",
-    "footer.rights": "© {year} {product}۔ جملہ حقوق محفوظ ہیں۔",
-
-    "wa.demo": "السلام علیکم! ہمیں اپنے ہسپتال کے لیے {product} کا ڈیمو چاہیے۔",
-  },
 };
 
 export { STRINGS };
@@ -236,7 +130,7 @@ export const LanguageProvider = ({ lang = "en", children }) => {
     },
     [lang]
   );
-  const value = useMemo(() => ({ lang, t, other: lang === "ur" ? "en" : "ur" }), [lang, t]);
+  const value = useMemo(() => ({ lang, t }), [lang, t]);
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 };
 

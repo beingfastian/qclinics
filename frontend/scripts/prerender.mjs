@@ -1,11 +1,10 @@
 // Runs after `vite build` (see package.json "build"). Turns the single-page app into
 // real HTML pages so search engines and WhatsApp/Facebook previews see the content:
 //   dist/index.html     English home ("/")
-//   dist/ur/index.html  Urdu home ("/ur")
 //   dist/404.html       not-found page (served with status 404 by the host)
 //   dist/app.html       empty shell for the queue screens (not indexed)
 //   dist/robots.txt, dist/sitemap.xml
-// Absolute addresses (canonical, hreflang, sitemap, share image) need the site's
+// Absolute addresses (canonical, sitemap, share image) need the site's
 // address: VITE_SITE_URL, or Vercel's production address. Without one they are left out.
 import fs from "node:fs";
 import path from "node:path";
@@ -60,7 +59,7 @@ const structuredData = (lang) => {
         applicationSubCategory: "Hospital and clinic management",
         operatingSystem: "Web browser",
         description: t["meta.description"],
-        inLanguage: ["en", "ur"],
+        inLanguage: "en",
         areaServed: "PK",
         publisher: SITE ? { "@id": `${SITE}/#organization` } : org.name,
       },
@@ -71,7 +70,6 @@ const structuredData = (lang) => {
 
 const headFor = ({ lang, url, indexable }) => {
   const t = STRINGS[lang];
-  const other = lang === "ur" ? "en" : "ur";
   const title = indexable ? t["meta.title"] : `${t["notFound.title"]} | ${PRODUCT_NAME}`;
   const tags = [
     `<title>${esc(title)}</title>`,
@@ -80,10 +78,7 @@ const headFor = ({ lang, url, indexable }) => {
   ];
   if (indexable && SITE) {
     tags.push(
-      `<link rel="canonical" href="${abs(url)}" />`,
-      `<link rel="alternate" hreflang="en" href="${abs(LANGUAGES.en.path)}" />`,
-      `<link rel="alternate" hreflang="ur" href="${abs(LANGUAGES.ur.path)}" />`,
-      `<link rel="alternate" hreflang="x-default" href="${abs(LANGUAGES.en.path)}" />`
+      `<link rel="canonical" href="${abs(url)}" />`
     );
   }
   if (indexable) {
@@ -93,7 +88,6 @@ const headFor = ({ lang, url, indexable }) => {
       `<meta property="og:title" content="${esc(t["meta.title"])}" />`,
       `<meta property="og:description" content="${esc(t["meta.description"])}" />`,
       `<meta property="og:locale" content="${LANGUAGES[lang].locale}" />`,
-      `<meta property="og:locale:alternate" content="${LANGUAGES[other].locale}" />`,
       `<meta name="twitter:card" content="summary_large_image" />`,
       `<meta name="twitter:title" content="${esc(t["meta.title"])}" />`,
       `<meta name="twitter:description" content="${esc(t["meta.description"])}" />`
@@ -121,11 +115,8 @@ const page = ({ url, lang, file, indexable = true }) => {
     .replace(/<html[^>]*>/, `<html lang="${lang}" dir="${LANGUAGES[lang].dir}" class="scroll-smooth">`)
     .replace(SEO_BLOCK, headFor({ lang, url, indexable }))
     .replace('<div id="root"></div>', `<div id="root">${render(url)}</div>`);
-  // Urdu page: the Nastaliq font is essential, load it right away. English page:
-  // only the language switch and the WhatsApp preview use it, so it can arrive later.
-  html = html.replace(URDU_FONT, (_, link) =>
-    lang === "ur" ? link.replace(/\s*media="print"\s*onload="this.media='all'"/, "") : link
-  );
+  // The marketing pages are English only: the Urdu font is just for the queue screens
+  html = html.replace(URDU_FONT, "").replace("&family=Noto+Nastaliq+Urdu:wght@400;600", "");
   const out = path.join(dist, file);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, html);
@@ -133,7 +124,6 @@ const page = ({ url, lang, file, indexable = true }) => {
 };
 
 page({ url: "/", lang: "en", file: "index.html" });
-page({ url: "/ur", lang: "ur", file: "ur/index.html" });
 page({ url: "/404", lang: "en", file: "404.html", indexable: false });
 
 // Queue screens: empty shell, never indexed (vercel.json also sends X-Robots-Tag)
@@ -150,18 +140,18 @@ fs.writeFileSync(path.join(dist, "robots.txt"), robots.join("\n") + "\n");
 
 if (SITE) {
   const today = new Date().toISOString().slice(0, 10);
-  const alternates = ["en", "ur"].map((l) => `    <xhtml:link rel="alternate" hreflang="${l}" href="${abs(LANGUAGES[l].path)}"/>`).join("\n");
-  const urls = ["en", "ur"]
-    .map((l) => `  <url>\n    <loc>${abs(LANGUAGES[l].path)}</loc>\n    <lastmod>${today}</lastmod>\n${alternates}\n    <xhtml:link rel="alternate" hreflang="x-default" href="${abs(LANGUAGES.en.path)}"/>\n  </url>`)
-    .join("\n");
+  const urls = `  <url>
+    <loc>${abs("/")}</loc>
+    <lastmod>${today}</lastmod>
+  </url>`;
   fs.writeFileSync(
     path.join(dist, "sitemap.xml"),
-    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls}\n</urlset>\n`
+    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`
   );
   console.log(`sitemap.xml and canonical links use ${SITE}`);
 } else {
   console.warn(
-    "\n⚠ No site address (VITE_SITE_URL, or Vercel's production URL): canonical links, hreflang,\n" +
+    "\n⚠ No site address (VITE_SITE_URL, or Vercel's production URL): canonical links,\n" +
       "  sitemap.xml and share-image tags were left out. Set VITE_SITE_URL once there is a domain.\n"
   );
 }

@@ -20,7 +20,7 @@ export const HOSPITAL_MAP_URL = env.VITE_HOSPITAL_MAP_URL || "";
 export const SALES_PHONE = env.VITE_SALES_PHONE || "+923338082908";
 export const SALES_EMAIL = env.VITE_SALES_EMAIL || "hanzladev376@gmail.com";
 // Public address of this website, e.g. "https://qclinics.pk" (no trailing slash).
-// Used at build time for canonical links, hreflang, the sitemap and link previews.
+// Used at build time for canonical links, the sitemap and link previews.
 // On Vercel it falls back to the project's production address automatically.
 export const SITE_URL = (env.VITE_SITE_URL || "").replace(/\/+$/, "");
 // Optional: where staff sign in (the admin app), shown as "Staff sign in"

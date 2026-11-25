@@ -13,7 +13,7 @@ const app = (
   </StrictMode>
 );
 
-// "/", "/ur" and the 404 page arrive already rendered (scripts/prerender.mjs):
+// "/" and the 404 page arrive already rendered (scripts/prerender.mjs):
 // take them over instead of drawing them again. Other screens start empty.
 if (root.hasChildNodes()) hydrateRoot(root, app);
 else createRoot(root).render(app);
