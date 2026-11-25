@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { FaBars, FaPhoneAlt, FaTimes, FaWhatsapp } from "react-icons/fa";
 import { PRODUCT_NAME, STAFF_APP_URL } from "../config";
-import { LANGUAGES, useLanguage } from "../i18n";
+import { useLanguage } from "../i18n";
 import { ButtonLink, Container, Logo, cx, telUrl, whatsappUrl } from "./site";
 
 export const SECTIONS = [
@@ -10,23 +10,6 @@ export const SECTIONS = [
   { id: "how", key: "nav.how" },
   { id: "faq", key: "nav.faq" },
 ];
-
-// English <-> Urdu: each language is its own page ("/" and "/ur"). The label is
-// always in the other language, so it can be read.
-export const LanguageSwitch = ({ className = "" }) => {
-  const { other, t } = useLanguage();
-  return (
-    <a
-      href={LANGUAGES[other].path}
-      hrefLang={other}
-      lang={other}
-      aria-label={t("lang.switchLabel")}
-      className={cx("inline-flex h-10 items-center rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-800 hover:bg-slate-50", className)}
-    >
-      {t("lang.switch")}
-    </a>
-  );
-};
 
 const Navbar = () => {
   const { t } = useLanguage();
@@ -66,7 +49,6 @@ const Navbar = () => {
               {t("nav.staff")}
             </a>
           )}
-          <LanguageSwitch className="hidden sm:inline-flex" />
           <ButtonLink href={whatsappUrl(t("wa.demo", { product: PRODUCT_NAME }))} external variant="primary" icon={<FaWhatsapp />} className="hidden md:inline-flex h-10">
             {t("action.demoShort")}
           </ButtonLink>
@@ -102,7 +84,6 @@ const Navbar = () => {
                 </li>
               )}
             </ul>
-            <LanguageSwitch className="mt-3 w-full justify-center sm:hidden" />
           </Container>
         </div>
       )}

@@ -2,6 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "trailingSlash": false,
   "redirects": [
+    { "source": "/ur", "destination": "/", "permanent": true },
+    { "source": "/ur/:path*", "destination": "/", "permanent": true },
     { "source": "/doctors", "destination": "/", "permanent": true },
     { "source": "/doctors/:path*", "destination": "/", "permanent": true },
     { "source": "/about", "destination": "/", "permanent": true },

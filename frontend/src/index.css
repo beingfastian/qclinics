@@ -21,26 +21,6 @@
     @apply font-urdu;
     line-height: 1.9;
   }
-  /* Whole site in Urdu: body and headings set their own font, so switch them too.
-     Nastaliq is tall: headings need more room than the English line heights.
-     Latin bits (names, numbers) carry lang="en" + font-sans and keep their font. */
-  html[lang="ur"] body,
-  html[lang="ur"] h1,
-  html[lang="ur"] h2,
-  html[lang="ur"] h3 {
-    @apply font-urdu;
-  }
-  /* Tailwind's text-* sizes set tight line heights that clip Nastaliq */
-  html[lang="ur"] body *:not(h1, h2, h3, [lang="en"], [lang="en"] *) {
-    line-height: 1.9;
-  }
-  html[lang="ur"] h1 {
-    line-height: 1.7;
-  }
-  html[lang="ur"] h2,
-  html[lang="ur"] h3 {
-    line-height: 1.8;
-  }
   /* Visible keyboard focus on every control (mouse clicks don't show it) */
   :focus-visible {
     outline: 2px solid theme("colors.primary.700");

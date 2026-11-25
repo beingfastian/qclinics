@@ -50,7 +50,7 @@ const ProductPreview = () => {
         <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-800">
           <FaWhatsapp /> {t("mock.whatsapp")}
         </p>
-        <p lang="ur" dir="rtl" className="mt-2 text-sm !leading-loose text-slate-900">
+        <p className="mt-2 text-sm text-slate-900">
           {t("mock.message")}
         </p>
         <p className="mt-2 text-xs font-medium text-primary-800">{t("mock.track")} →</p>

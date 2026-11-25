@@ -38,10 +38,9 @@ const App = () => {
         <main id="main" className="flex-1">
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/ur" element={<Home />} />
             {/* Old patient-site pages: the host sends a permanent redirect (vercel.json);
                 this covers local development */}
-            {["/doctors", "/doctors/*", "/about", "/contact"].map((path) => (
+            {["/ur", "/ur/*", "/doctors", "/doctors/*", "/about", "/contact"].map((path) => (
               <Route key={path} path={path} element={<Navigate to="/" replace />} />
             ))}
             <Route path="*" element={<NotFound />} />
